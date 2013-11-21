@@ -3,9 +3,15 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 {{with .Tabtitle}}
+<!--
   <title>{{html .}} - The Go Programming Language</title>
+-->
+  <title>{{html .}} - Go 编程语言</title>
 {{else}}
+<!--
   <title>The Go Programming Language</title>
+-->
+  <title>Go 编程语言</title>
 {{end}}
 <link type="text/css" rel="stylesheet" href="/lib/godoc/style.css">
 {{if .SearchBox}}
@@ -19,17 +25,30 @@
 
 <form method="GET" action="/search">
 <div id="menu">
+<!--
 <a href="/doc/">Documents</a>
 <a href="/pkg/">Packages</a>
 <a href="/project/">The Project</a>
 <a href="/help/">Help</a>
 <a href="/blog/">Blog</a>
+-->
+<a href="/doc/">文档</a>
+<a href="/pkg/">包</a>
+<a href="/project/">项目</a>
+<a href="/help/">帮助</a>
+<a href="/blog/">博客</a>
 {{if .Playground}}
+<!--
 <a id="playgroundButton" href="http://play.golang.org/" title="Show Go Playground">Play</a>
+-->
+<a id="playgroundButton" href="http://play.golang.org/" title="显示 Go 操场">运行</a>
 {{end}}
 <input type="text" id="search" name="q" class="inactive" value="Search" placeholder="Search">
 </div>
+<!--
 <div id="heading"><a href="/">The Go Programming Language</a></div>
+-->
+<div id="heading"><a href="/">Go 编程语言</a></div>
 </form>
 
 </div></div>
@@ -45,9 +64,14 @@ func main() {
 }</textarea></div>
 	<div class="output"></div>
 	<div class="buttons">
+<!--
 		<a class="run" title="Run this code [shift-enter]">Run</a>
 		<a class="fmt" title="Format this code">Format</a>
 		<a class="share" title="Share this code">Share</a>
+-->
+		<a class="run" title="运行此代码[Shift-Enter]">运行</a>
+		<a class="fmt" title="格式化此代码">格式化</a>
+		<a class="share" title="分享此代码">分享</a>
 	</div>
 </div>
 {{end}}
@@ -70,14 +94,23 @@ func main() {
 {{/* Body is HTML-escaped elsewhere */}}
 {{printf "%s" .Body}}
 
+<!--
 <div id="footer">
 Build version {{html .Version}}.<br>
 Except as <a href="http://code.google.com/policies.html#restrictions">noted</a>,
 the content of this page is licensed under the
 Creative Commons Attribution 3.0 License,
 and code is licensed under a <a href="/LICENSE">BSD license</a>.<br>
-<a href="/doc/tos.html">Terms of Service</a> | 
+<a href="/doc/tos.html">Terms of Service</a> |
 <a href="http://www.google.com/intl/en/policies/privacy/">Privacy Policy</a>
+</div>
+-->
+<div id="footer">
+构建版本 {{html .Version}}.<br>
+除<a href="http://code.google.com/policies.html#restrictions">特别注明</a>外，
+本页内容均采用知识共享-署名（CC-BY）3.0协议授权，代码采用<a href="/LICENSE">BSD协议</a>授权。<br>
+<a href="/doc/tos.html">服务条款</a> |
+<a href="http://www.google.com/intl/en/policies/privacy/">隐私政策</a>
 </div>
 
 </div><!-- .container -->
