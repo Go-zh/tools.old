@@ -1548,6 +1548,24 @@ function PlaygroundOutput(el) {
 	</table>
 	</p>
 {{end}}
+{{range $key, $val := .Idents}}
+        {{if $val}}
+                <h2 id="Global">{{$key.Name}}</h2>
+                {{range $val}}
+	                {{$pkg_html := pkgLink .Path | html}}
+		        {{$doc_html := docLink .Path .Name| html}}
+  	                <a href="/{{$pkg_html}}">{{html .Package}}</a>.<a href="{{$doc_html}}">{{.Name}}</a>
+                        {{if .Doc}}
+                                <p>{{comment_html .Doc}}</p>
+                        {{else}}
+<!--
+                                <p><em>No documentation available</em></p>
+-->
+                                <p><em>无可用文档</em></p>
+                        {{end}}
+                {{end}}
+        {{end}}
+{{end}}
 {{with .Hit}}
 	{{with .Decls}}
 <!--
@@ -1664,6 +1682,13 @@ function PlaygroundOutput(el) {
 {{range .}}	{{pkgLink .Pak.Path}}
 {{end}}
 {{end}}{{/* .Pak */}}{{/*
+
+---------------------------------------
+
+*/}}{{range $key, $val := .Idents}}{{if $val}}{{$key.Name}}
+{{range $val.Idents}}    {{.Path}}.{{.Name}}
+{{end}}
+{{end}}{{end}}{{/* .Idents */}}{{/*
 
 ---------------------------------------
 
