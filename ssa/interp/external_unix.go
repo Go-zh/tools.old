@@ -9,7 +9,7 @@ package interp
 import (
 	"syscall"
 
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 func fillStat(st *syscall.Stat_t, stat structure) {

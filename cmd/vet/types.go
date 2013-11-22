@@ -10,8 +10,8 @@ import (
 	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go.tools/go/exact"
-	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go-zh.tools/go/types"
 )
 
 func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) error {

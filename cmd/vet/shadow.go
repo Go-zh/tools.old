@@ -34,7 +34,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/types"
 )
 
 // Span stores the minimum range of byte positions in the file in which a

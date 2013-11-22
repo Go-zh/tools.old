@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"code.google.com/p/go.tools/go/vcs"
+	"code.google.com/p/go-zh.tools/go/vcs"
 )
 
 const (

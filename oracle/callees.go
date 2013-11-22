@@ -10,9 +10,9 @@ import (
 	"go/token"
 	"sort"
 
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/oracle/serial"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go-zh.tools/oracle/serial"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 // Callees reports the possible callees of the function call site

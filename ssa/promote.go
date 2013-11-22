@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"go/token"
 
-	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/types"
 )
 
 // Method returns the Function implementing method meth, building

@@ -52,9 +52,9 @@ import (
 	"strings"
 	"sync"
 
-	"code.google.com/p/go.tools/go/exact"
-	"code.google.com/p/go.tools/go/gcimporter"
-	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go-zh.tools/go/gcimporter"
+	"code.google.com/p/go-zh.tools/go/types"
 )
 
 // An Importer's exported methods are not thread-safe.

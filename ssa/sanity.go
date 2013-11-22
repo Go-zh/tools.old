@@ -13,7 +13,7 @@ import (
 	"os"
 	"strings"
 
-	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/types"
 )
 
 type sanity struct {

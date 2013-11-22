@@ -14,12 +14,12 @@ import (
 	"strconv"
 	"strings"
 
-	"code.google.com/p/go.tools/go/exact"
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/importer"
-	"code.google.com/p/go.tools/oracle/serial"
-	"code.google.com/p/go.tools/pointer"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go-zh.tools/importer"
+	"code.google.com/p/go-zh.tools/oracle/serial"
+	"code.google.com/p/go-zh.tools/pointer"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 // describe describes the syntax node denoted by the query position,

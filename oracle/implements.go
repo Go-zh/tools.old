@@ -7,8 +7,8 @@ package oracle
 import (
 	"go/token"
 
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/oracle/serial"
+	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go-zh.tools/oracle/serial"
 )
 
 // Implements displays the 'implements" relation among all

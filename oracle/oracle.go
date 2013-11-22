@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Package oracle contains the implementation of the oracle tool whose
-// command-line is provided by code.google.com/p/go.tools/cmd/oracle.
+// command-line is provided by code.google.com/p/go-zh.tools/cmd/oracle.
 //
 // http://golang.org/s/oracle-design
 // http://golang.org/s/oracle-user-manual
@@ -30,11 +30,11 @@ import (
 	"strings"
 	"time"
 
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/importer"
-	"code.google.com/p/go.tools/oracle/serial"
-	"code.google.com/p/go.tools/pointer"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go-zh.tools/importer"
+	"code.google.com/p/go-zh.tools/oracle/serial"
+	"code.google.com/p/go-zh.tools/pointer"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 // An Oracle holds the program state required for one or more queries.

@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"code.google.com/p/go.tools/importer"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/importer"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 const debugMode = false

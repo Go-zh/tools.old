@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"go/token"
 
-	"code.google.com/p/go.tools/call"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/call"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 // cgraph implements call.Graph.

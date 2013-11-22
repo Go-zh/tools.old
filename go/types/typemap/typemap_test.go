@@ -9,8 +9,8 @@ import (
 	"go/ast"
 	"testing"
 
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/go/types/typemap"
+	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/types/typemap"
 )
 
 var (

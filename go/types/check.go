@@ -11,7 +11,7 @@ import (
 	"go/token"
 	"path"
 
-	"code.google.com/p/go.tools/go/exact"
+	"code.google.com/p/go-zh.tools/go/exact"
 )
 
 // debugging/development support

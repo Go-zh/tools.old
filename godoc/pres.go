@@ -10,7 +10,7 @@ import (
 	"sync"
 	"text/template"
 
-	"code.google.com/p/go.tools/godoc/vfs/httpfs"
+	"code.google.com/p/go-zh.tools/godoc/vfs/httpfs"
 )
 
 // Presentation generates output from a corpus.

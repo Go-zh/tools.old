@@ -13,10 +13,10 @@ import (
 	"go/token"
 	"sync"
 
-	"code.google.com/p/go.tools/go/exact"
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/go/types/typemap"
-	"code.google.com/p/go.tools/importer"
+	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/types/typemap"
+	"code.google.com/p/go-zh.tools/importer"
 )
 
 // A Program is a partial or complete Go program converted to SSA form.

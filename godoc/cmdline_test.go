@@ -7,8 +7,8 @@ import (
 	"testing"
 	"text/template"
 
-	"code.google.com/p/go.tools/godoc/vfs"
-	"code.google.com/p/go.tools/godoc/vfs/mapfs"
+	"code.google.com/p/go-zh.tools/godoc/vfs"
+	"code.google.com/p/go-zh.tools/godoc/vfs/mapfs"
 )
 
 func TestPaths(t *testing.T) {

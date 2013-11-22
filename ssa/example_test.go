@@ -10,8 +10,8 @@ import (
 	"go/parser"
 	"os"
 
-	"code.google.com/p/go.tools/importer"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/importer"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 // This program demonstrates how to run the SSA builder on a "Hello,

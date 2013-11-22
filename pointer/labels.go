@@ -9,9 +9,9 @@ import (
 	"go/token"
 	"strings"
 
-	"code.google.com/p/go.tools/call"
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/call"
+	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 // A Label is an entity that may be pointed to by a pointer, map,

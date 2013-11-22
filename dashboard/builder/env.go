@@ -13,7 +13,7 @@ import (
 	"runtime"
 	"strings"
 
-	"code.google.com/p/go.tools/go/vcs"
+	"code.google.com/p/go-zh.tools/go/vcs"
 )
 
 // These variables are copied from the gobuilder's environment

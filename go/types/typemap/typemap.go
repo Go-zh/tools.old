@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/types"
 )
 
 // typemap.M is a mapping from types.Type to interface{} values.

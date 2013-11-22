@@ -11,7 +11,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go.tools/go/exact"
+	"code.google.com/p/go-zh.tools/go/exact"
 )
 
 // An operandMode specifies the (addressing) mode of an operand.

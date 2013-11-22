@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/importer"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go-zh.tools/importer"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 func isEmpty(f *ssa.Function) bool { return f.Blocks == nil }

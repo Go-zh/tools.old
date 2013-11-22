@@ -21,9 +21,9 @@ import (
 	"strconv"
 	"strings"
 
-	"code.google.com/p/go.tools/go/exact"
-	_ "code.google.com/p/go.tools/go/gcimporter"
-	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/exact"
+	_ "code.google.com/p/go-zh.tools/go/gcimporter"
+	"code.google.com/p/go-zh.tools/go/types"
 )
 
 var verbose = flag.Bool("v", false, "verbose")

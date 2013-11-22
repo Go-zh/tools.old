@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	"code.google.com/p/go.tools/importer"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/importer"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 // pathToString returns a string containing the concrete types of the

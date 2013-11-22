@@ -10,10 +10,10 @@ import (
 	"go/token"
 	"sort"
 
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/oracle/serial"
-	"code.google.com/p/go.tools/pointer"
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go-zh.tools/oracle/serial"
+	"code.google.com/p/go-zh.tools/pointer"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 // peers enumerates, for a given channel send (or receive) operation,

@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go-zh.tools/ssa"
 )
 
 type externalFn func(fn *ssa.Function, args []value) value

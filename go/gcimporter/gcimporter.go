@@ -20,8 +20,8 @@ import (
 	"strings"
 	"text/scanner"
 
-	"code.google.com/p/go.tools/go/exact"
-	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go-zh.tools/go/types"
 )
 
 // debugging/development support
