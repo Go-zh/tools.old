@@ -232,7 +232,9 @@ var Files = map[string]string{
 -->
 <a id="playgroundButton" href="http://play.golang.org/" title="显示 Go 操场">运行</a>
 {{end}}
-<input type="text" id="search" name="q" class="inactive" value="Search" placeholder="Search">
+<!--
+<input type="text" id="search" name="q" class="inactive" value="Search" placeholder="搜索">
+-->
 </div>
 <!--
 <div id="heading"><a href="/">The Go Programming Language</a></div>
