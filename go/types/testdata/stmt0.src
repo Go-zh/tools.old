@@ -21,7 +21,7 @@ func assignments0() (int, int) {
 
 	a = f0 /* ERROR "used as value" */ ()
 	a = f1()
-	a = f2 /* ERROR "used as single value" */ ()
+	a = f2 /* ERROR "assignment count mismatch" */ ()
 	a, b = f2()
 	a, b, c = f2 /* ERROR "assignment count mismatch" */ ()
 	a, b, c = f3()
@@ -90,7 +90,7 @@ func assignments1() {
 
 	// assignments to _
 	_ = nil /* ERROR "use of untyped nil" */
-	_ = 1<<1000 // TODO(gri) this should fail
+	_ = 1 /* ERROR overflow */ <<1000
 	(_) = 0
 }
 
@@ -388,10 +388,9 @@ func switches0() {
 	case 1 /* DISABLED "duplicate case" */ :
 	}
 
-	// TODO(gri) duplicate 64bit values that don't fit into an int64 are not yet detected
 	switch uint64(x) {
-	case 1<<64-1:
-	case 1<<64-1:
+	case 1 /* DISABLED duplicate case */ <<64-1:
+	case 1 /* DISABLED duplicate case */ <<64-1:
 	}
 }
 
