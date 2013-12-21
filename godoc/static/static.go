@@ -2328,5 +2328,14 @@ div.english {
 .invisible_translation {
 	display: none;
 }
+/* Translator notes. */
+p.tnote {
+	background: #00f9e9;
+	padding: 10px;
+
+	-webkit-border-radius: 5px;
+	-moz-border-radius: 5px;
+	border-radius: 5px;
+}
 `,
 }
