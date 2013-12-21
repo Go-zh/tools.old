@@ -9,8 +9,8 @@ import (
 	pathpkg "path"
 	"time"
 
-	"code.google.com/p/go.tools/godoc/util"
-	"code.google.com/p/go.tools/godoc/vfs"
+	"code.google.com/p/go-zh.tools/godoc/util"
+	"code.google.com/p/go-zh.tools/godoc/vfs"
 )
 
 // A Corpus holds all the state related to serving and indexing a

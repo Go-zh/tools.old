@@ -15,8 +15,8 @@ import (
 	"strings"
 	"sync"
 
-	"code.google.com/p/go.tools/blog"
-	"code.google.com/p/go.tools/godoc/redirect"
+	"code.google.com/p/go-zh.tools/blog"
+	"code.google.com/p/go-zh.tools/godoc/redirect"
 )
 
 const (
