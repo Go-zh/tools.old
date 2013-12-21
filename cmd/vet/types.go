@@ -10,8 +10,8 @@ import (
 	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go-zh.tools/go/exact"
-	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go.tools/go/exact"
+	"code.google.com/p/go.tools/go/types"
 )
 
 func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) error {
@@ -29,7 +29,8 @@ func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) error {
 		Values:  pkg.values,
 		Objects: pkg.idents,
 	}
-	_, err := config.Check(pkg.path, fs, astFiles, info)
+	typesPkg, err := config.Check(pkg.path, fs, astFiles, info)
+	pkg.typesPkg = typesPkg
 	// update spans
 	for id, obj := range pkg.idents {
 		pkg.growSpan(id, obj)

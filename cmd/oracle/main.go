@@ -23,8 +23,8 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"code.google.com/p/go-zh.tools/importer"
-	"code.google.com/p/go-zh.tools/oracle"
+	"code.google.com/p/go.tools/importer"
+	"code.google.com/p/go.tools/oracle"
 )
 
 var posFlag = flag.String("pos", "",
@@ -36,8 +36,8 @@ var ptalogFlag = flag.String("ptalog", "",
 
 var formatFlag = flag.String("format", "plain", "Output format.  One of {plain,json,xml}.")
 
-// TODO(adonovan): eliminate or flip this flag after PTA presolver is implemented.
-var reflectFlag = flag.Bool("reflect", true, "Analyze reflection soundly (slow).")
+// TODO(adonovan): flip this flag after PTA presolver is implemented.
+var reflectFlag = flag.Bool("reflect", false, "Analyze reflection soundly (slow).")
 
 const useHelp = "Run 'oracle -help' for more information.\n"
 
@@ -69,8 +69,8 @@ The user manual is available here:  http://golang.org/s/oracle-user-manual
 Examples:
 
 Describe the syntax at offset 530 in this file (an import spec):
-% oracle -pos=src/code.google.com/p/go-zh.tools/cmd/oracle/main.go:#530 describe \
-   code.google.com/p/go-zh.tools/cmd/oracle
+% oracle -pos=src/code.google.com/p/go.tools/cmd/oracle/main.go:#530 describe \
+   code.google.com/p/go.tools/cmd/oracle
 
 Print the callgraph of the trivial web-server in JSON format:
 % oracle -format=json src/pkg/net/http/triv.go callgraph
@@ -122,7 +122,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	if len(args) == 0 {
+	if len(args) == 0 && mode != "what" {
 		fmt.Fprint(os.Stderr, "Error: no package arguments.\n"+useHelp)
 		os.Exit(2)
 	}

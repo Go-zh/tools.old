@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"os"
 
-	"code.google.com/p/go-zh.tools/godoc/vfs"
+	"code.google.com/p/go.tools/godoc/vfs"
 )
 
 func New(fs vfs.FileSystem) http.FileSystem {

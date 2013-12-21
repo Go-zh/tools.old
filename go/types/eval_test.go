@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	_ "code.google.com/p/go-zh.tools/go/gcimporter"
-	. "code.google.com/p/go-zh.tools/go/types"
+	_ "code.google.com/p/go.tools/go/gcimporter"
+	. "code.google.com/p/go.tools/go/types"
 )
 
 func testEval(t *testing.T, pkg *Package, scope *Scope, str string, typ Type, typStr, valStr string) {
@@ -123,7 +123,7 @@ func f(a int, s string) float64 {
 
 	var tests = []string{
 		`true => true, untyped boolean`,
-		`fmt.Println => , func(a·3 ...interface{}) (n·1 int, err·2 error)`,
+		`fmt.Println => , func(a ...interface{}) (n int, err error)`,
 		`c => 3, untyped float`,
 		`T => , p.T`,
 		`a => , int`,

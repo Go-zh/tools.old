@@ -10,12 +10,11 @@ package ssa
 import (
 	"bytes"
 	"fmt"
-	"go/ast"
 	"io"
 	"reflect"
 	"sort"
 
-	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go.tools/go/types"
 )
 
 // relName returns the name of v relative to i.
@@ -322,7 +321,7 @@ func (s *Select) String() string {
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		if st.Dir == ast.RECV {
+		if st.Dir == types.RecvOnly {
 			b.WriteString("<-")
 			b.WriteString(relName(st.Chan, s))
 		} else {

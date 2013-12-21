@@ -14,9 +14,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"appengine"
 	"appengine/datastore"
+
 	"cache"
 )
 
@@ -47,15 +49,16 @@ func commitHandler(r *http.Request) (interface{}, error) {
 	if r.Method != "POST" {
 		return nil, errBadMethod(r.Method)
 	}
+	if !isMasterKey(c, r.FormValue("key")) {
+		return nil, errors.New("can only POST commits with master key")
+	}
 
 	// POST request
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(com); err != nil {
 		return nil, fmt.Errorf("decoding Body: %v", err)
 	}
-	if len(com.Desc) > maxDatastoreStringLen {
-		com.Desc = com.Desc[:maxDatastoreStringLen]
-	}
+	com.Desc = limitStringLength(com.Desc, maxDatastoreStringLen)
 	if err := com.Valid(); err != nil {
 		return nil, fmt.Errorf("validating Commit: %v", err)
 	}
@@ -331,7 +334,7 @@ func resultHandler(r *http.Request) (interface{}, error) {
 func logHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-type", "text/plain; charset=utf-8")
 	c := contextForRequest(r)
-	hash := r.URL.Path[len("/log/"):]
+	hash := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
 	key := datastore.NewKey(c, "Log", hash, 0, nil)
 	l := new(Log)
 	if err := datastore.Get(c, key, l); err != nil {
@@ -433,13 +436,11 @@ func validHash(hash string) bool {
 }
 
 func validKey(c appengine.Context, key, builder string) bool {
-	if appengine.IsDevAppServer() {
-		return true
-	}
-	if key == secretKey(c) {
-		return true
-	}
-	return key == builderKey(c, builder)
+	return isMasterKey(c, key) || key == builderKey(c, builder)
+}
+
+func isMasterKey(c appengine.Context, key string) bool {
+	return appengine.IsDevAppServer() || key == secretKey(c)
 }
 
 func builderKey(c appengine.Context, builder string) string {
@@ -456,4 +457,21 @@ func logErr(w http.ResponseWriter, r *http.Request, err error) {
 
 func contextForRequest(r *http.Request) appengine.Context {
 	return dashboardForRequest(r).Context(appengine.NewContext(r))
+}
+
+// limitStringLength essentially does return s[:max],
+// but it ensures that we dot not split UTF-8 rune in half.
+// Otherwise appengine python scripts will break badly.
+func limitStringLength(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	for {
+		s = s[:max]
+		r, size := utf8.DecodeLastRuneInString(s)
+		if r != utf8.RuneError || size != 1 {
+			return s
+		}
+		max--
+	}
 }

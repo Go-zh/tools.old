@@ -11,7 +11,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go.tools/go/exact"
 )
 
 // An operandMode specifies the (addressing) mode of an operand.
@@ -231,7 +231,7 @@ func (x *operand) isAssignableTo(conf *Config, T Type) bool {
 	// x is a bidirectional channel value, T is a channel
 	// type, x's type V and T have identical element types,
 	// and at least one of V or T is not a named type
-	if Vc, ok := Vu.(*Chan); ok && Vc.dir == ast.SEND|ast.RECV {
+	if Vc, ok := Vu.(*Chan); ok && Vc.dir == SendRecv {
 		if Tc, ok := Tu.(*Chan); ok && IsIdentical(Vc.elem, Tc.elem) {
 			return !isNamed(V) || !isNamed(T)
 		}
@@ -266,7 +266,7 @@ func (x *operand) isAssignableTo(conf *Config, T Type) bool {
 				return Vb.kind == UntypedBool && isBoolean(Tu)
 			}
 		case *Interface:
-			return x.isNil() || t.NumMethods() == 0
+			return x.isNil() || t.Empty()
 		case *Pointer, *Signature, *Slice, *Map, *Chan:
 			return x.isNil()
 		}

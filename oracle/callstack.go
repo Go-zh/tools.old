@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"go/token"
 
-	"code.google.com/p/go-zh.tools/call"
-	"code.google.com/p/go-zh.tools/oracle/serial"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/call"
+	"code.google.com/p/go.tools/oracle/serial"
+	"code.google.com/p/go.tools/ssa"
 )
 
 // Callstack displays an arbitrary path from a root of the callgraph
@@ -41,7 +41,7 @@ func callstack(o *Oracle, qpos *QueryPos) (queryResult, error) {
 	}
 
 	// Run the pointer analysis and build the complete call graph.
-	o.config.BuildCallGraph = true
+	o.ptaConfig.BuildCallGraph = true
 	callgraph := ptrAnalysis(o).CallGraph
 
 	// Search for an arbitrary path from a root to the target function.

@@ -13,7 +13,7 @@ import (
 	"go/token"
 	pathpkg "path"
 
-	"code.google.com/p/go-zh.tools/godoc/vfs"
+	"code.google.com/p/go.tools/godoc/vfs"
 )
 
 func (c *Corpus) parseFile(fset *token.FileSet, filename string, mode parser.Mode) (*ast.File, error) {

@@ -11,12 +11,12 @@ import (
 	"go/token"
 	"path"
 
-	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go.tools/go/exact"
 )
 
 // debugging/development support
 const (
-	debug = true  // leave on during development
+	debug = false // leave on during development
 	trace = false // turn on for detailed type resolution traces
 )
 

@@ -2,12 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build windows plan9
-
 package interp
 
 import (
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/ssa"
 )
 
 func ext۰syscall۰Close(fn *ssa.Function, args []value) value {
@@ -39,4 +37,7 @@ func ext۰syscall۰Stat(fn *ssa.Function, args []value) value {
 }
 func ext۰syscall۰Write(fn *ssa.Function, args []value) value {
 	panic("syscall.Write not yet implemented")
+}
+func ext۰syscall۰RawSyscall(fn *ssa.Function, args []value) value {
+	return tuple{uintptr(0), uintptr(0), uintptr(syscall.ENOSYS)}
 }

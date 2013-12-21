@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"code.google.com/p/go-zh.tools/importer"
-	"code.google.com/p/go-zh.tools/ssa"
-	"code.google.com/p/go-zh.tools/ssa/interp"
+	"code.google.com/p/go.tools/importer"
+	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go.tools/ssa/interp"
 )
 
 // Each line contains a space-separated list of $GOROOT/test/
@@ -190,7 +190,7 @@ func run(t *testing.T, dir, input string, success successPredicate) bool {
 		interp.CapturedOutput = nil
 	}()
 
-	hint = fmt.Sprintf("To dump SSA representation, run:\n%% go build code.google.com/p/go-zh.tools/cmd/ssadump && ./ssadump -build=CFP %s\n", input)
+	hint = fmt.Sprintf("To dump SSA representation, run:\n%% go build code.google.com/p/go.tools/cmd/ssadump && ./ssadump -build=CFP %s\n", input)
 	mainInfo := imp.CreatePackage(files[0].Name.Name, files...)
 
 	if _, err := imp.LoadPackage("runtime"); err != nil {
@@ -221,7 +221,7 @@ func run(t *testing.T, dir, input string, success successPredicate) bool {
 	var out bytes.Buffer
 	interp.CapturedOutput = &out
 
-	hint = fmt.Sprintf("To trace execution, run:\n%% go build code.google.com/p/go-zh.tools/cmd/ssadump && ./ssadump -build=C -run --interp=T %s\n", input)
+	hint = fmt.Sprintf("To trace execution, run:\n%% go build code.google.com/p/go.tools/cmd/ssadump && ./ssadump -build=C -run --interp=T %s\n", input)
 	exitCode := interp.Interpret(mainPkg, 0, inputs[0], []string{})
 
 	// The definition of success varies with each file.

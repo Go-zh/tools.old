@@ -10,10 +10,11 @@ import (
 	"go/token"
 	"sort"
 
-	"code.google.com/p/go-zh.tools/go/types"
-	"code.google.com/p/go-zh.tools/oracle/serial"
-	"code.google.com/p/go-zh.tools/pointer"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go.tools/oracle/serial"
+	"code.google.com/p/go.tools/pointer"
+	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go.tools/ssa/ssautil"
 )
 
 // peers enumerates, for a given channel send (or receive) operation,
@@ -36,7 +37,7 @@ func peers(o *Oracle, qpos *QueryPos) (queryResult, error) {
 
 	// Look at all send/receive instructions in the whole ssa.Program.
 	// Build a list of those of same type to query.
-	allFuncs := ssa.AllFunctions(o.prog)
+	allFuncs := ssautil.AllFunctions(o.prog)
 	for fn := range allFuncs {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
@@ -59,11 +60,11 @@ func peers(o *Oracle, qpos *QueryPos) (queryResult, error) {
 	// ignore both directionality and type names.
 	queryType := queryOp.ch.Type()
 	queryElemType := queryType.Underlying().(*types.Chan).Elem()
-	channels := map[ssa.Value]pointer.Indirect{queryOp.ch: false}
+	o.ptaConfig.AddQuery(queryOp.ch)
 	i := 0
 	for _, op := range ops {
 		if types.IsIdentical(op.ch.Type().Underlying().(*types.Chan).Elem(), queryElemType) {
-			channels[op.ch] = false
+			o.ptaConfig.AddQuery(op.ch)
 			ops[i] = op
 			i++
 		}
@@ -71,7 +72,6 @@ func peers(o *Oracle, qpos *QueryPos) (queryResult, error) {
 	ops = ops[:i]
 
 	// Run the pointer analysis.
-	o.config.Queries = channels
 	ptares := ptrAnalysis(o)
 
 	// Combine the PT sets from all contexts.
@@ -88,8 +88,8 @@ func peers(o *Oracle, qpos *QueryPos) (queryResult, error) {
 	var sends, receives []token.Pos
 	for _, op := range ops {
 		for _, ptr := range ptares.Queries[op.ch] {
-			if ptr != nil && ptr.PointsTo().Intersects(queryChanPts) {
-				if op.dir == ast.SEND {
+			if ptr.PointsTo().Intersects(queryChanPts) {
+				if op.dir == types.SendOnly {
 					sends = append(sends, op.pos)
 				} else {
 					receives = append(receives, op.pos)
@@ -129,7 +129,7 @@ func findArrow(qpos *QueryPos) token.Pos {
 // chanOp abstracts an ssa.Send, ssa.Unop(ARROW), or a SelectState.
 type chanOp struct {
 	ch  ssa.Value
-	dir ast.ChanDir
+	dir types.ChanDir // SendOnly or RecvOnly
 	pos token.Pos
 }
 
@@ -140,10 +140,10 @@ func chanOps(instr ssa.Instruction) []chanOp {
 	switch instr := instr.(type) {
 	case *ssa.UnOp:
 		if instr.Op == token.ARROW {
-			ops = append(ops, chanOp{instr.X, ast.RECV, instr.Pos()})
+			ops = append(ops, chanOp{instr.X, types.RecvOnly, instr.Pos()})
 		}
 	case *ssa.Send:
-		ops = append(ops, chanOp{instr.Chan, ast.SEND, instr.Pos()})
+		ops = append(ops, chanOp{instr.Chan, types.SendOnly, instr.Pos()})
 	case *ssa.Select:
 		for _, st := range instr.States {
 			ops = append(ops, chanOp{st.Chan, st.Dir, st.Pos})

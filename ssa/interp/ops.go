@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"unsafe"
 
-	"code.google.com/p/go-zh.tools/go/exact"
-	"code.google.com/p/go-zh.tools/go/types"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/go/exact"
+	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go.tools/ssa"
 )
 
 // If the target program panics, the interpreter panics with this type.
@@ -233,6 +233,15 @@ func zero(t types.Type) value {
 		s := make(structure, t.NumFields())
 		for i := range s {
 			s[i] = zero(t.Field(i).Type())
+		}
+		return s
+	case *types.Tuple:
+		if t.Len() == 1 {
+			return zero(t.At(0).Type())
+		}
+		s := make(tuple, t.Len())
+		for i := range s {
+			s[i] = zero(t.At(i).Type())
 		}
 		return s
 	case *types.Chan:

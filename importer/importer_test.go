@@ -9,7 +9,7 @@ import (
 	"go/build"
 	"testing"
 
-	"code.google.com/p/go-zh.tools/importer"
+	"code.google.com/p/go.tools/importer"
 )
 
 func TestLoadInitialPackages(t *testing.T) {

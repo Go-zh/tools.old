@@ -18,8 +18,8 @@ package pointer
 import (
 	"fmt"
 
-	"code.google.com/p/go-zh.tools/go/types"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go.tools/ssa"
 )
 
 // Instances of 'intrinsic' generate analysis constraints for calls to

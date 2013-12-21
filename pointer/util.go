@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go.tools/go/types"
 )
 
 // CanPoint reports whether the type T is pointerlike,

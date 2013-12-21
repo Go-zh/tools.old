@@ -8,7 +8,7 @@ import (
 	"go/parser"
 	"testing"
 
-	. "code.google.com/p/go-zh.tools/go/types"
+	. "code.google.com/p/go.tools/go/types"
 )
 
 var testExprs = []testEntry{

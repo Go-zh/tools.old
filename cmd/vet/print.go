@@ -16,7 +16,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go.tools/go/exact"
 )
 
 var printfuncs = flag.String("printfuncs", "", "comma-separated list of print function names to check")

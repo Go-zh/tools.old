@@ -32,6 +32,12 @@ type Referrers struct {
 	Refs   []string `json:"refs,omitempty"`   // locations of all references
 }
 
+// A Definition is the result of a 'definition' query.
+type Definition struct {
+	ObjPos string `json:"objpos,omitempty"` // location of the definition
+	Desc   string `json:"desc"`             // description of the denoted object
+}
+
 type CalleesItem struct {
 	Name string `json:"name"` // full name of called function
 	Pos  string `json:"pos"`  // location of called function
@@ -93,18 +99,45 @@ type FreeVar struct {
 	Type string `json:"type"` // type of the expression
 }
 
-// An Implements is one element of the result of an 'implements' query.
-// Each one indicates a row in the "implements" relation over
-// package-level named types defined by the package containing the
-// selection.
+// An Implements contains the result of an 'implements' query.
+
+// It describes the queried type, the set of named non-empty interface
+// types to which it is assignable, and the set of named/*named types
+// (concrete or non-empty interface) which may be assigned to it.
+//
 type Implements struct {
-	I    string `json:"i"`    // full name of the interface type
-	IPos string `json:"ipos"` // location of its definition
-	C    string `json:"c"`    // full name of the concrete type
-	CPos string `json:"cpos"` // location of its definition
+	T                 ImplementsType   `json:"type,omitempty"`    // the queried type
+	AssignableTo      []ImplementsType `json:"to,omitempty"`      // types assignable to T
+	AssignableFrom    []ImplementsType `json:"from,omitempty"`    // interface types assignable from T
+	AssignableFromPtr []ImplementsType `json:"fromptr,omitempty"` // interface types assignable only from *T
 }
 
-// A DescribePTALabel describes a pointer analysis label.
+// An ImplementsType describes a single type as part of an 'implements' query.
+type ImplementsType struct {
+	Name string `json:"name"` // full name of the type
+	Pos  string `json:"pos"`  // location of its definition
+	Kind string `json:"kind"` // "basic", "array", etc
+}
+
+// A SyntaxNode is one element of a stack of enclosing syntax nodes in
+// a "what" query.
+type SyntaxNode struct {
+	Description string `json:"desc"`  // description of syntax tree
+	Start       int    `json:"start"` // start offset (0-based)
+	End         int    `json:"end"`   // end offset
+}
+
+// A What is the result of the "what" query, which quickly identifies
+// the selection, parsing only a single file.  It is intended for use
+// in low-latency GUIs.
+type What struct {
+	Enclosing  []SyntaxNode `json:"enclosing"`            // enclosing nodes of syntax tree
+	Modes      []string     `json:"modes"`                // query modes enabled for this selection.
+	SrcDir     string       `json:"srcdir,omitempty"`     // $GOROOT src directory containing queried package
+	ImportPath string       `json:"importpath,omitempty"` // import path of queried package
+}
+
+// A PointsToLabel describes a pointer analysis label.
 //
 // A "label" is an object that may be pointed to by a pointer, map,
 // channel, 'func', slice or interface.  Labels include:
@@ -116,35 +149,33 @@ type Implements struct {
 //    - channels, maps and arrays created by make()
 //    - and their subelements, e.g. "alloc.y[*].z"
 //
-type DescribePTALabel struct {
+type PointsToLabel struct {
 	Pos  string `json:"pos"`  // location of syntax that allocated the object
 	Desc string `json:"desc"` // description of the label
 }
 
-// A DescribePointer describes a single pointer: its type and the
-// set of "labels" it points to.
+// A PointsTo is one element of the result of a 'pointsto' query on an
+// expression.  It describes a single pointer: its type and the set of
+// "labels" it points to.
 //
-type DescribePointer struct {
-	Type    string             `json:"type"`              // (concrete) type of the pointer
-	NamePos string             `json:"namepos,omitempty"` // location of type defn, if Named
-	Labels  []DescribePTALabel `json:"labels,omitempty"`  // pointed-to objects
-}
-
-// A DescribeValue is the additional result of a 'describe' query
-// if the selection indicates a value or expression.
-//
-// If the described value is an interface, it will have one PTS entry
+// If the pointer is of interface type, it will have one PTS entry
 // describing each concrete type that it may contain.  For each
 // concrete type that is a pointer, the PTS entry describes the labels
 // it may point to.  The same is true for reflect.Values, except the
 // dynamic types needn't be concrete.
 //
+type PointsTo struct {
+	Type    string          `json:"type"`              // (concrete) type of the pointer
+	NamePos string          `json:"namepos,omitempty"` // location of type defn, if Named
+	Labels  []PointsToLabel `json:"labels,omitempty"`  // pointed-to objects
+}
+
+// A DescribeValue is the additional result of a 'describe' query
+// if the selection indicates a value or expression.
 type DescribeValue struct {
-	Type   string             `json:"type"`             // type of the expression
-	Value  string             `json:"value,omitempty"`  // value of the expression, if constant
-	ObjPos string             `json:"objpos,omitempty"` // location of the definition, if an Ident
-	PTAErr string             `json:"ptaerr,omitempty"` // reason pointer analysis wasn't attempted
-	PTS    []*DescribePointer `json:"pts,omitempty"`    // points-to set; an interface may have many
+	Type   string `json:"type"`             // type of the expression
+	Value  string `json:"value,omitempty"`  // value of the expression, if constant
+	ObjPos string `json:"objpos,omitempty"` // location of the definition, if an Ident
 }
 
 type DescribeMethod struct {
@@ -207,15 +238,18 @@ type Result struct {
 
 	// Exactly one of the following fields is populated:
 	// the one specified by 'mode'.
-	Callees    *Callees      `json:"callees,omitempty"`
-	Callers    []Caller      `json:"callers,omitempty"`
-	Callgraph  []CallGraph   `json:"callgraph,omitempty"`
-	Callstack  *CallStack    `json:"callstack,omitempty"`
-	Describe   *Describe     `json:"describe,omitempty"`
-	Freevars   []*FreeVar    `json:"freevars,omitempty"`
-	Implements []*Implements `json:"implements,omitempty"`
-	Peers      *Peers        `json:"peers,omitempty"`
-	Referrers  *Referrers    `json:"referrers,omitempty"`
+	Callees    *Callees    `json:"callees,omitempty"`
+	Callers    []Caller    `json:"callers,omitempty"`
+	Callgraph  []CallGraph `json:"callgraph,omitempty"`
+	Callstack  *CallStack  `json:"callstack,omitempty"`
+	Definition *Definition `json:"definition,omitempty"`
+	Describe   *Describe   `json:"describe,omitempty"`
+	Freevars   []*FreeVar  `json:"freevars,omitempty"`
+	Implements *Implements `json:"implements,omitempty"`
+	Peers      *Peers      `json:"peers,omitempty"`
+	PointsTo   []PointsTo  `json:"pointsto,omitempty"`
+	Referrers  *Referrers  `json:"referrers,omitempty"`
+	What       *What       `json:"what,omitempty"`
 
 	Warnings []PTAWarning `json:"warnings,omitempty"` // warnings from pointer analysis
 }

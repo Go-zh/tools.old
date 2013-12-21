@@ -11,20 +11,14 @@
 {{end}}
 {{with .Alt}}
 	<p>
-<!--
 	<span class="alert" style="font-size:120%">Did you mean: </span>
--->
-	<span class="alert" style="font-size:120%">你是否在找：</span>
 	{{range .Alts}}
 		<a href="search?q={{urlquery .}}" style="font-size:120%">{{html .}}</a>
 	{{end}}
 	</p>
 {{end}}
 {{with .Pak}}
-<!--
 	<h2 id="Packages">Package {{html $.Query}}</h2>
--->
-	<h2 id="Packages">{{html $.Query}} 包</h2>
 	<p>
 	<table class="layout">
 	{{range .}}
@@ -44,28 +38,23 @@
                         {{if .Doc}}
                                 <p>{{comment_html .Doc}}</p>
                         {{else}}
-<!--
                                 <p><em>No documentation available</em></p>
--->
-                                <p><em>无可用文档</em></p>
                         {{end}}
                 {{end}}
         {{end}}
 {{end}}
 {{with .Hit}}
 	{{with .Decls}}
-<!--
 		<h2 id="Global">Package-level declarations</h2>
--->
-		<h2 id="Global">包级声明</h2>
 		{{range .}}
 			{{$pkg_html := pkgLink .Pak.Path | html}}
 			<h3 id="Global_{{$pkg_html}}">package <a href="/{{$pkg_html}}">{{html .Pak.Name}}</a></h3>
 			{{range .Files}}
-				{{$src_html := srcLink .File.Path | html}}
+				{{$file := .File.Path}}
 				{{range .Groups}}
 					{{range .}}
-						<a href="{{$src_html}}?h={{$query_url}}#L{{infoLine .}}">{{$src_html}}:{{infoLine .}}</a>
+						{{$line := infoLine .}}
+						<a href="{{queryLink $file $query_url $line | html}}">{{$file}}:{{$line}}</a>
 						{{infoSnippet_html .}}
 					{{end}}
 				{{end}}
@@ -73,16 +62,13 @@
 		{{end}}
 	{{end}}
 	{{with .Others}}
-<!--
 		<h2 id="Local">Local declarations and uses</h2>
--->
-		<h2 id="Local">局部声明和使用</h2>
 		{{range .}}
 			{{$pkg_html := pkgLink .Pak.Path | html}}
 			<h3 id="Local_{{$pkg_html}}">package <a href="/{{$pkg_html}}">{{html .Pak.Name}}</a></h3>
 			{{range .Files}}
-				{{$src_html := srcLink .File.Path | html}}
-				<a href="{{$src_html}}?h={{$query_url}}">{{$src_html}}</a>
+				{{$file := .File.Path}}
+				<a href="{{queryLink $file $query_url 0 | html}}">{{$file}}</a>
 				<table class="layout">
 				{{range .Groups}}
 					<tr>
@@ -91,7 +77,8 @@
 					<td align="left" width="4"></td>
 					<td>
 					{{range .}}
-						<a href="{{$src_html}}?h={{$query_url}}#L{{infoLine .}}">{{infoLine .}}</a>
+						{{$line := infoLine .}}
+						<a href="{{queryLink $file $query_url $line | html}}">{{$line}}</a>
 					{{end}}
 					</td>
 					</tr>
@@ -103,36 +90,27 @@
 {{end}}
 {{with .Textual}}
 	{{if $.Complete}}
-<!--
 		<h2 id="Textual">{{html $.Found}} textual occurrences</h2>
--->
-		<h2 id="Textual">{{html $.Found}} 文本事件</h2>
 	{{else}}
-<!--
 		<h2 id="Textual">More than {{html $.Found}} textual occurrences</h2>
 		<p>
 		<span class="alert" style="font-size:120%">Not all files or lines containing "{{html $.Query}}" are shown.</span>
-		</p>
--->
-		<h2 id="Textual">不只是 {{html $.Found}} 文本事件</h2>
-		<p>
-		<span class="alert" style="font-size:120%">并未显示所有包含 "{{html $.Query}}" 的文件或行。</span>
 		</p>
 	{{end}}
 	<p>
 	<table class="layout">
 	{{range .}}
-		{{$src_html := srcLink .Filename | html}}
+		{{$file := .Filename}}
 		<tr>
 		<td align="left" valign="top">
-		<a href="{{$src_html}}?h={{$query_url}}">{{$src_html}}</a>:
+		<a href="{{queryLink $file $query_url 0}}">{{$file}}</a>:
 		</td>
 		<td align="left" width="4"></td>
 		<th align="left" valign="top">{{len .Lines}}</th>
 		<td align="left" width="4"></td>
 		<td align="left">
 		{{range .Lines}}
-			<a href="{{$src_html}}?h={{$query_url}}#L{{html .}}">{{html .}}</a>
+			<a href="{{queryLink $file $query_url .}}">{{html .}}</a>
 		{{end}}
 		{{if not $.Complete}}
 			...

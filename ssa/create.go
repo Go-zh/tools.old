@@ -14,8 +14,8 @@ import (
 	"os"
 	"strings"
 
-	"code.google.com/p/go-zh.tools/go/types"
-	"code.google.com/p/go-zh.tools/importer"
+	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go.tools/importer"
 )
 
 // BuilderMode is a bitmask of options for diagnostics and checking.

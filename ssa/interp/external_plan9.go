@@ -5,9 +5,7 @@
 package interp
 
 import (
-	"syscall"
-
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/ssa"
 )
 
 func ext۰syscall۰Close(fn *ssa.Function, args []value) value {
@@ -41,4 +39,7 @@ func ext۰syscall۰Write(fn *ssa.Function, args []value) value {
 	// func Write(fd int, p []byte) (n int, err error)
 	n, err := write(args[0].(int), valueToBytes(args[1]))
 	return tuple{n, wrapError(err)}
+}
+func ext۰syscall۰RawSyscall(fn *ssa.Function, args []value) value {
+	return tuple{^uintptr(0), uintptr(0), uintptr(0)}
 }

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unicode"
 
-	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go.tools/go/exact"
 )
 
 func (check *checker) reportAltDecl(obj Object) {
@@ -147,7 +147,7 @@ func (check *checker) resolveFiles(files []*ast.File) {
 	importer := check.conf.Import
 	if importer == nil {
 		if DefaultImport == nil {
-			panic(`no Config.Import or DefaultImport (missing import _ "code.google.com/p/go-zh.tools/go/gcimporter"?)`)
+			panic(`no Config.Import or DefaultImport (missing import _ "code.google.com/p/go.tools/go/gcimporter"?)`)
 		}
 		importer = DefaultImport
 	}
@@ -462,33 +462,37 @@ func (check *checker) resolveFiles(files []*ast.File) {
 	// any of its exported identifiers. To import a package solely for its side-effects
 	// (initialization), use the blank identifier as explicit package name."
 
-	for i, scope := range fileScopes {
-		var usedDotImports map[*Package]bool // lazily allocated
-		for _, obj := range scope.elems {
-			switch obj := obj.(type) {
-			case *PkgName:
-				// Unused "blank imports" are automatically ignored
-				// since _ identifiers are not entered into scopes.
-				if !obj.used {
-					check.errorf(obj.pos, "%q imported but not used", obj.pkg.path)
-				}
-			default:
-				// All other objects in the file scope must be dot-
-				// imported. If an object was used, mark its package
-				// as used.
-				if obj.isUsed() {
-					if usedDotImports == nil {
-						usedDotImports = make(map[*Package]bool)
+	// We must skip this check if we didn't look at function bodies.
+
+	if !check.conf.IgnoreFuncBodies {
+		for i, scope := range fileScopes {
+			var usedDotImports map[*Package]bool // lazily allocated
+			for _, obj := range scope.elems {
+				switch obj := obj.(type) {
+				case *PkgName:
+					// Unused "blank imports" are automatically ignored
+					// since _ identifiers are not entered into scopes.
+					if !obj.used {
+						check.errorf(obj.pos, "%q imported but not used", obj.pkg.path)
 					}
-					usedDotImports[obj.Pkg()] = true
+				default:
+					// All other objects in the file scope must be dot-
+					// imported. If an object was used, mark its package
+					// as used.
+					if obj.isUsed() {
+						if usedDotImports == nil {
+							usedDotImports = make(map[*Package]bool)
+						}
+						usedDotImports[obj.Pkg()] = true
+					}
 				}
 			}
-		}
-		// Iterate through all dot-imports for this file and
-		// check if the corresponding package was used.
-		for pkg, pos := range dotImports[i] {
-			if !usedDotImports[pkg] {
-				check.errorf(pos, "%q imported but not used", pkg.path)
+			// Iterate through all dot-imports for this file and
+			// check if the corresponding package was used.
+			for pkg, pos := range dotImports[i] {
+				if !usedDotImports[pkg] {
+					check.errorf(pos, "%q imported but not used", pkg.path)
+				}
 			}
 		}
 	}

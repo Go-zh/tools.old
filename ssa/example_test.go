@@ -10,8 +10,8 @@ import (
 	"go/parser"
 	"os"
 
-	"code.google.com/p/go-zh.tools/importer"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/importer"
+	"code.google.com/p/go.tools/ssa"
 )
 
 // This program demonstrates how to run the SSA builder on a "Hello,
@@ -26,8 +26,9 @@ import (
 // (i.e. implements Value), the type of that value is shown in the
 // right column.
 //
-// Build and run the ssadump.go program in this package if you want a
-// standalone tool with similar functionality.
+// Build and run the ssadump.go program if you want a standalone tool
+// with similar functionality. It is located at
+// code.google.com/p/go.tools/cmd/ssadump.
 //
 func Example() {
 	const hello = `
@@ -101,7 +102,7 @@ func main() {
 	// func main():
 	// .0.entry:                                                               P:0 S:0
 	// 	t0 = new [1]interface{} (varargs)                       *[1]interface{}
-	// 	t1 = &t0[0:untyped integer]                                *interface{}
+	// 	t1 = &t0[0:int]                                            *interface{}
 	// 	t2 = make interface{} <- string ("Hello, World!":string)    interface{}
 	// 	*t1 = t2
 	// 	t3 = slice t0[:]                                          []interface{}

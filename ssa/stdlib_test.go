@@ -19,8 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"code.google.com/p/go-zh.tools/importer"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/importer"
+	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go.tools/ssa/ssautil"
 )
 
 const debugMode = false
@@ -97,7 +98,7 @@ func TestStdlib(t *testing.T) {
 	}
 
 	// Dump some statistics.
-	allFuncs := ssa.AllFunctions(prog)
+	allFuncs := ssautil.AllFunctions(prog)
 	var numInstrs int
 	for fn := range allFuncs {
 		for _, b := range fn.Blocks {

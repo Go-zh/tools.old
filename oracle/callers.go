@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"go/token"
 
-	"code.google.com/p/go-zh.tools/call"
-	"code.google.com/p/go-zh.tools/oracle/serial"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/call"
+	"code.google.com/p/go.tools/oracle/serial"
+	"code.google.com/p/go.tools/ssa"
 )
 
 // Callers reports the possible callers of the function
@@ -36,7 +36,7 @@ func callers(o *Oracle, qpos *QueryPos) (queryResult, error) {
 
 	// Run the pointer analysis, recording each
 	// call found to originate from target.
-	o.config.BuildCallGraph = true
+	o.ptaConfig.BuildCallGraph = true
 	callgraph := ptrAnalysis(o).CallGraph
 	var edges []call.Edge
 	call.GraphVisitEdges(callgraph, func(edge call.Edge) error {

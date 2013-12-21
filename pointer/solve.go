@@ -10,7 +10,7 @@ package pointer
 import (
 	"fmt"
 
-	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go.tools/go/types"
 )
 
 func (a *analysis) solve() {

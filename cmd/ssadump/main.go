@@ -14,9 +14,9 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"code.google.com/p/go-zh.tools/importer"
-	"code.google.com/p/go-zh.tools/ssa"
-	"code.google.com/p/go-zh.tools/ssa/interp"
+	"code.google.com/p/go.tools/importer"
+	"code.google.com/p/go.tools/ssa"
+	"code.google.com/p/go.tools/ssa/interp"
 )
 
 var buildFlag = flag.String("build", "", `Options controlling the SSA builder.

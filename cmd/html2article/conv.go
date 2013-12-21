@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // This program takes an HTML file and outputs a corresponding article file in
-// present format. See: code.google.com/p/go-zh.tools/present
+// present format. See: code.google.com/p/go.tools/present
 package main
 
 import (

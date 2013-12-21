@@ -14,7 +14,7 @@ import (
 	"os"
 	"strings"
 
-	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go.tools/go/types"
 )
 
 // addEdge adds a control-flow graph edge from from to to.
@@ -324,11 +324,12 @@ func (f *Function) finishBody() {
 
 	buildReferrers(f)
 
+	buildDomTree(f)
+
 	if f.Prog.mode&NaiveForm == 0 {
 		// For debugging pre-state of lifting pass:
 		// numberRegisters(f)
 		// f.DumpTo(os.Stderr)
-
 		lift(f)
 	}
 

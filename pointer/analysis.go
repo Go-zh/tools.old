@@ -13,9 +13,9 @@ import (
 	"os"
 	"reflect"
 
-	"code.google.com/p/go-zh.tools/go/types"
-	"code.google.com/p/go-zh.tools/go/types/typemap"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go.tools/go/types/typemap"
+	"code.google.com/p/go.tools/ssa"
 )
 
 // object.flags bitmask values.
@@ -259,10 +259,11 @@ func Analyze(config *Config) *Result {
 		flattenMemo: make(map[types.Type][]*fieldInfo),
 		hasher:      typemap.MakeHasher(),
 		intrinsics:  make(map[*ssa.Function]intrinsic),
-		probes:      make(map[*ssa.CallCommon]nodeid),
 		work:        makeMapWorklist(),
 		result: &Result{
-			Queries: make(map[ssa.Value][]Pointer),
+			Queries:         make(map[ssa.Value][]Pointer),
+			IndirectQueries: make(map[ssa.Value][]Pointer),
+			PrintCalls:      make(map[*ssa.CallCommon]Pointer),
 		},
 	}
 

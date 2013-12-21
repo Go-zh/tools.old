@@ -37,8 +37,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"code.google.com/p/go-zh.tools/go/exact"
-	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go.tools/go/exact"
+	"code.google.com/p/go.tools/go/types"
 )
 
 type opaqueType struct {
@@ -62,10 +62,9 @@ var (
 	tEface      = new(types.Interface)
 
 	// SSA Value constants.
-	vZero  = intConst(0)
-	vOne   = intConst(1)
-	vTrue  = NewConst(exact.MakeBool(true), tBool)
-	vFalse = NewConst(exact.MakeBool(false), tBool)
+	vZero = intConst(0)
+	vOne  = intConst(1)
+	vTrue = NewConst(exact.MakeBool(true), tBool)
 )
 
 // builder holds state associated with the package currently being built.
@@ -314,7 +313,7 @@ func (b *builder) builtin(fn *Function, obj *types.Builtin, args []ast.Expr, typ
 			pos: pos,
 		})
 		fn.currentBlock = fn.newBasicBlock("unreachable")
-		return vFalse // any non-nil Value will do
+		return vTrue // any non-nil Value will do
 	}
 	return nil // treat all others as a regular function call
 }
@@ -1386,7 +1385,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 		case *ast.SendStmt: // ch<- i
 			ch := b.expr(fn, comm.Chan)
 			st = &SelectState{
-				Dir:  ast.SEND,
+				Dir:  types.SendOnly,
 				Chan: ch,
 				Send: emitConv(fn, b.expr(fn, comm.Value),
 					ch.Type().Underlying().(*types.Chan).Elem()),
@@ -1399,7 +1398,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 		case *ast.AssignStmt: // x := <-ch
 			recv := unparen(comm.Rhs[0]).(*ast.UnaryExpr)
 			st = &SelectState{
-				Dir:  ast.RECV,
+				Dir:  types.RecvOnly,
 				Chan: b.expr(fn, recv.X),
 				Pos:  recv.OpPos,
 			}
@@ -1410,7 +1409,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 		case *ast.ExprStmt: // <-ch
 			recv := unparen(comm.X).(*ast.UnaryExpr)
 			st = &SelectState{
-				Dir:  ast.RECV,
+				Dir:  types.RecvOnly,
 				Chan: b.expr(fn, recv.X),
 				Pos:  recv.OpPos,
 			}
@@ -1441,7 +1440,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 	var vars []*types.Var
 	vars = append(vars, varIndex, varOk)
 	for _, st := range states {
-		if st.Dir == ast.RECV {
+		if st.Dir == types.RecvOnly {
 			tElem := st.Chan.Type().Underlying().(*types.Chan).Elem()
 			vars = append(vars, types.NewVar(token.NoPos, nil, "", tElem))
 		}
@@ -1890,7 +1889,8 @@ start:
 		if s.Tok == token.DEC {
 			op = token.SUB
 		}
-		b.assignOp(fn, b.addr(fn, s.X, false), vOne, op)
+		loc := b.addr(fn, s.X, false)
+		b.assignOp(fn, loc, NewConst(exact.MakeInt64(1), loc.typ()), op)
 
 	case *ast.AssignStmt:
 		switch s.Tok {

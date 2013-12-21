@@ -10,7 +10,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go.tools/go/exact"
 )
 
 // builtin type-checks a call to the built-in specified by id and
@@ -175,7 +175,7 @@ func (check *checker) builtin(x *operand, call *ast.CallExpr, id builtinId) (_ b
 			check.invalidArg(x.pos(), "%s is not a channel", x)
 			return
 		}
-		if c.dir&ast.SEND == 0 {
+		if c.dir == RecvOnly {
 			check.invalidArg(x.pos(), "%s must not be a receive-only channel", x)
 			return
 		}

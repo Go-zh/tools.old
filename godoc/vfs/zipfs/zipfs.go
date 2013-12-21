@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"code.google.com/p/go-zh.tools/godoc/vfs"
+	"code.google.com/p/go.tools/godoc/vfs"
 )
 
 // zipFI is the zip-file based implementation of FileInfo

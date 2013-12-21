@@ -12,11 +12,10 @@ package pointer
 
 import (
 	"fmt"
-	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go-zh.tools/go/types"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go.tools/ssa"
 )
 
 var (
@@ -80,14 +79,16 @@ func (a *analysis) setValueNode(v ssa.Value, id nodeid, cgn *cgnode) {
 		fmt.Fprintf(a.log, "\tval[%s] = n%d  (%T)\n", v.Name(), id, v)
 	}
 
-	// Record the (v, id) relation if the client has queried v.
-	if indirect, ok := a.config.Queries[v]; ok {
-		if indirect {
-			tmp := a.addNodes(v.Type(), "query.indirect")
-			a.genLoad(cgn, tmp, v, 0, a.sizeof(v.Type()))
-			id = tmp
-		}
-		a.result.Queries[v] = append(a.result.Queries[v], ptr{a, cgn, id})
+	// Record the (v, id) relation if the client has queried pts(v).
+	if _, ok := a.config.Queries[v]; ok {
+		a.result.Queries[v] = append(a.result.Queries[v], Pointer{a, cgn, id})
+	}
+
+	// Record the (*v, id) relation if the client has queried pts(*v).
+	if _, ok := a.config.IndirectQueries[v]; ok {
+		indirect := a.addNodes(v.Type(), "query.indirect")
+		a.genLoad(cgn, indirect, v, 0, a.sizeof(v.Type()))
+		a.result.IndirectQueries[v] = append(a.result.IndirectQueries[v], Pointer{a, cgn, indirect})
 	}
 }
 
@@ -526,20 +527,20 @@ func (a *analysis) genBuiltinCall(instr ssa.CallInstruction, cgn *cgnode) {
 		// Analytically print is a no-op, but it's a convenient hook
 		// for testing the pts of an expression, so we notify the client.
 		// Existing uses in Go core libraries are few and harmless.
-		if Print := a.config.Print; Print != nil {
+		if a.config.QueryPrintCalls {
 			// Due to context-sensitivity, we may encounter
 			// the same print() call in many contexts, so
 			// we merge them to a canonical node.
-			probe := a.probes[call]
+
 			t := call.Args[0].Type()
 
-			// First time?  Create the canonical probe node.
-			if probe == 0 {
-				probe = a.addNodes(t, "print")
-				a.probes[call] = probe
-				Print(call, ptr{a, nil, probe}) // notify client
+			ptr, ok := a.result.PrintCalls[call]
+			if !ok {
+				// First time?  Create the canonical probe node.
+				ptr = Pointer{a, nil, a.addNodes(t, "print")}
+				a.result.PrintCalls[call] = ptr
 			}
-
+			probe := ptr.n
 			a.copy(probe, a.valueNode(call.Args[0]), a.sizeof(t))
 		}
 
@@ -992,11 +993,11 @@ func (a *analysis) genInstr(cgn *cgnode, instr ssa.Instruction) {
 		for _, st := range instr.States {
 			elemSize := a.sizeof(st.Chan.Type().Underlying().(*types.Chan).Elem())
 			switch st.Dir {
-			case ast.RECV:
+			case types.RecvOnly:
 				a.genLoad(cgn, recv, st.Chan, 0, elemSize)
 				recv += nodeid(elemSize)
 
-			case ast.SEND:
+			case types.SendOnly:
 				a.genStore(cgn, st.Chan, a.valueNode(st.Send), 0, elemSize)
 			}
 		}

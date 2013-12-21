@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"code.google.com/p/go-zh.tools/go/vcs"
+	"code.google.com/p/go.tools/go/vcs"
 )
 
 // Repo represents a mercurial repository.

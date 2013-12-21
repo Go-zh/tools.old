@@ -176,9 +176,8 @@ import (
 `,
 	},
 	{
-		broken: true,
-		name:   "struct comment",
-		pkg:    "time",
+		name: "struct comment",
+		pkg:  "time",
 		in: `package main
 
 // This is a comment before a struct.
@@ -201,21 +200,27 @@ type T struct {
 func TestAddImport(t *testing.T) {
 	for _, test := range addTests {
 		file := parse(t, test.name, test.in)
-		AddNamedImport(file, test.renamedPkg, test.pkg)
+		var before bytes.Buffer
+		ast.Fprint(&before, fset, file, nil)
+		AddNamedImport(fset, file, test.renamedPkg, test.pkg)
 		if got := print(t, test.name, file); got != test.out {
 			if test.broken {
 				t.Logf("%s is known broken:\ngot: %s\nwant: %s", test.name, got, test.out)
 			} else {
 				t.Errorf("%s:\ngot: %s\nwant: %s", test.name, got, test.out)
 			}
+			var after bytes.Buffer
+			ast.Fprint(&after, fset, file, nil)
+
+			t.Logf("AST before:\n%s\nAST after:\n%s\n", before.String(), after.String())
 		}
 	}
 }
 
 func TestDoubleAddImport(t *testing.T) {
 	file := parse(t, "doubleimport", "package main\n")
-	AddImport(file, "os")
-	AddImport(file, "bytes")
+	AddImport(fset, file, "os")
+	AddImport(fset, file, "bytes")
 	want := `package main
 
 import (
@@ -410,7 +415,7 @@ import (
 func TestDeleteImport(t *testing.T) {
 	for _, test := range deleteTests {
 		file := parse(t, test.name, test.in)
-		DeleteImport(file, test.pkg)
+		DeleteImport(fset, file, test.pkg)
 		if got := print(t, test.name, file); got != test.out {
 			t.Errorf("%s:\ngot: %s\nwant: %s", test.name, got, test.out)
 		}
@@ -539,7 +544,7 @@ var addr = flag.String("addr", ":1718", "http service address") // Q=17, R=18
 func TestRewriteImport(t *testing.T) {
 	for _, test := range rewriteTests {
 		file := parse(t, test.name, test.in)
-		RewriteImport(file, test.srcPkg, test.dstPkg)
+		RewriteImport(fset, file, test.srcPkg, test.dstPkg)
 		if got := print(t, test.name, file); got != test.out {
 			t.Errorf("%s:\ngot: %s\nwant: %s", test.name, got, test.out)
 		}

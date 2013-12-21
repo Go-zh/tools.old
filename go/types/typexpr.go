@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strconv"
 
-	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go.tools/go/exact"
 )
 
 // ident type-checks identifier e and initializes x with the value or type of e.
@@ -337,7 +337,19 @@ func (check *checker) typInternal(e ast.Expr, def *Named, cycleOk bool) Type {
 			def.underlying = typ
 		}
 
-		typ.dir = e.Dir
+		dir := SendRecv
+		switch e.Dir {
+		case ast.SEND | ast.RECV:
+			// nothing to do
+		case ast.SEND:
+			dir = SendOnly
+		case ast.RECV:
+			dir = RecvOnly
+		default:
+			check.invalidAST(e.Pos(), "unknown channel direction %d", e.Dir)
+			// ok to continue
+		}
+		typ.dir = dir
 		typ.elem = check.typ(e.Value, nil, true)
 		return typ
 
@@ -515,7 +527,7 @@ func (check *checker) interfaceType(ityp *ast.InterfaceType, def *Named, cycleOk
 			check.errorf(pos, "%s is not an interface", named)
 			continue
 		}
-		iface.types = append(iface.types, named)
+		iface.embeddeds = append(iface.embeddeds, named)
 		// collect embedded methods
 		for _, m := range embed.allMethods {
 			if check.declareInSet(&mset, pos, m) {
@@ -552,10 +564,27 @@ func (check *checker) interfaceType(ityp *ast.InterfaceType, def *Named, cycleOk
 		*m.typ.(*Signature) = *sig // update signature (don't replace it!)
 	}
 
+	// TODO(gri) The list of explicit methods is only sorted for now to
+	// produce the same Interface as NewInterface. We may be able to
+	// claim source order in the future. Revisit.
+	sort.Sort(byUniqueMethodName(iface.methods))
+
+	// TODO(gri) The list of embedded types is only sorted for now to
+	// produce the same Interface as NewInterface. We may be able to
+	// claim source order in the future. Revisit.
+	sort.Sort(byUniqueTypeName(iface.embeddeds))
+
 	sort.Sort(byUniqueMethodName(iface.allMethods))
 
 	return iface
 }
+
+// byUniqueTypeName named type lists can be sorted by their unique type names.
+type byUniqueTypeName []*Named
+
+func (a byUniqueTypeName) Len() int           { return len(a) }
+func (a byUniqueTypeName) Less(i, j int) bool { return a[i].obj.Id() < a[j].obj.Id() }
+func (a byUniqueTypeName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // byUniqueMethodName method lists can be sorted by their unique method names.
 type byUniqueMethodName []*Func

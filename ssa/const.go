@@ -11,8 +11,8 @@ import (
 	"go/token"
 	"strconv"
 
-	"code.google.com/p/go-zh.tools/go/exact"
-	"code.google.com/p/go-zh.tools/go/types"
+	"code.google.com/p/go.tools/go/exact"
+	"code.google.com/p/go.tools/go/types"
 )
 
 // NewConst returns a new constant of the specified value and type.
@@ -22,9 +22,10 @@ func NewConst(val exact.Value, typ types.Type) *Const {
 	return &Const{typ, val}
 }
 
-// intConst returns an untyped integer constant that evaluates to i.
+// intConst returns an 'int' constant that evaluates to i.
+// (i is an int64 in case the host is narrower than the target.)
 func intConst(i int64) *Const {
-	return NewConst(exact.MakeInt64(i), types.Typ[types.UntypedInt])
+	return NewConst(exact.MakeInt64(i), types.Typ[types.Int])
 }
 
 // nilConst returns a nil constant of the specified type, which may

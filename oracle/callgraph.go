@@ -8,9 +8,9 @@ import (
 	"go/token"
 	"sort"
 
-	"code.google.com/p/go-zh.tools/call"
-	"code.google.com/p/go-zh.tools/oracle/serial"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/call"
+	"code.google.com/p/go.tools/oracle/serial"
+	"code.google.com/p/go.tools/ssa"
 )
 
 // callgraph displays the entire callgraph of the current program.
@@ -32,7 +32,7 @@ func callgraph(o *Oracle, _ *QueryPos) (queryResult, error) {
 	buildSSA(o)
 
 	// Run the pointer analysis and build the complete callgraph.
-	o.config.BuildCallGraph = true
+	o.ptaConfig.BuildCallGraph = true
 	ptares := ptrAnalysis(o)
 
 	return &callgraphResult{

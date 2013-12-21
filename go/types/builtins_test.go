@@ -10,8 +10,8 @@ import (
 	"go/parser"
 	"testing"
 
-	_ "code.google.com/p/go-zh.tools/go/gcimporter"
-	. "code.google.com/p/go-zh.tools/go/types"
+	_ "code.google.com/p/go.tools/go/gcimporter"
+	. "code.google.com/p/go.tools/go/types"
 )
 
 var builtinCalls = []struct {

@@ -28,7 +28,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go-zh.tools/go/exact"
+	"code.google.com/p/go.tools/go/exact"
 )
 
 // Check type-checks a package and returns the resulting complete package
@@ -110,7 +110,7 @@ type Config struct {
 // DefaultImport is the default importer invoked if Config.Import == nil.
 // The declaration:
 //
-//	import _ "code.google.com/p/go-zh.tools/go/gcimporter"
+//	import _ "code.google.com/p/go.tools/go/gcimporter"
 //
 // in a client of go/types will initialize DefaultImport to gcimporter.Import.
 var DefaultImport Importer
@@ -145,7 +145,7 @@ type Info struct {
 	//
 	//	node               declared object
 	//
-	//	*ast.ImportSpec    *PkgName (imports w/o renames), or imported objects (dot-imports)
+	//	*ast.ImportSpec    *PkgName for dot-imports and imports without renames
 	//	*ast.CaseClause    type-specific *Var for each type switch case clause (incl. default)
 	//      *ast.Field         anonymous struct field or parameter *Var
 	//

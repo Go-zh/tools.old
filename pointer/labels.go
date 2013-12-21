@@ -9,24 +9,24 @@ import (
 	"go/token"
 	"strings"
 
-	"code.google.com/p/go-zh.tools/call"
-	"code.google.com/p/go-zh.tools/go/types"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/call"
+	"code.google.com/p/go.tools/go/types"
+	"code.google.com/p/go.tools/ssa"
 )
 
 // A Label is an entity that may be pointed to by a pointer, map,
 // channel, 'func', slice or interface.  Labels include:
 //
 // Labels include:
-// 	- functions
+//      - functions
 //      - globals
 //      - tagged objects, representing interfaces and reflect.Values
-//      - arrays created by literals (e.g. []byte("foo")) and conversions ([]byte(s))
-// 	- stack- and heap-allocated variables (including composite literals)
-// 	- channels, maps and arrays created by make()
-//	- instrinsic or reflective operations that allocate (e.g. append, reflect.New)
-//	- instrinsic objects, e.g. the initial array behind os.Args.
-// 	- and their subelements, e.g. "alloc.y[*].z"
+//      - arrays created by conversions (e.g. []byte("foo"), []byte(s))
+//      - stack- and heap-allocated variables (including composite literals)
+//      - channels, maps and arrays created by make()
+//      - instrinsic or reflective operations that allocate (e.g. append, reflect.New)
+//      - instrinsic objects, e.g. the initial array behind os.Args.
+//      - and their subelements, e.g. "alloc.y[*].z"
 //
 // Labels are so varied that they defy good generalizations;
 // some have no value, no callgraph node, or no position.
@@ -100,6 +100,8 @@ func (l Label) Pos() token.Pos {
 //      x.y[*].z                                (a struct variable, x)
 //      append.y[*].z                           (array allocated by append)
 //      makeslice.y[*].z                        (array allocated via make)
+//
+// TODO(adonovan): expose func LabelString(*types.Package, Label).
 //
 func (l Label) String() string {
 	var s string

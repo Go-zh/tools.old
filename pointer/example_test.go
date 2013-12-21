@@ -10,10 +10,10 @@ import (
 	"go/parser"
 	"sort"
 
-	"code.google.com/p/go-zh.tools/call"
-	"code.google.com/p/go-zh.tools/importer"
-	"code.google.com/p/go-zh.tools/pointer"
-	"code.google.com/p/go-zh.tools/ssa"
+	"code.google.com/p/go.tools/call"
+	"code.google.com/p/go.tools/importer"
+	"code.google.com/p/go.tools/pointer"
+	"code.google.com/p/go.tools/ssa"
 )
 
 // This program demonstrates how to use the pointer analysis to

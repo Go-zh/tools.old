@@ -21,7 +21,7 @@
 ZIPFILE=godoc.zip
 INDEXFILE=godoc.index
 SPLITFILES=index.split.
-GODOC=code.google.com/p/go-zh.tools/cmd/godoc
+GODOC=code.google.com/p/go.tools/cmd/godoc
 CONFIGFILE=$GODOC/appconfig.go
 
 error() {
@@ -47,7 +47,7 @@ getArgs() {
 		APPDIR=$1
 		echo "APPDIR not set, using argument instead"
 	fi
-
+	
 	# safety checks
 	if [ ! -d $GOROOT ]; then
 		error "$GOROOT is not a directory"

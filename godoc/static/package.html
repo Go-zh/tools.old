@@ -20,39 +20,23 @@
 			<dd><code>import "{{html .ImportPath}}"</code></dd>
 			</dl>
 			<dl>
-<!--
 			<dd><a href="#pkg-overview" class="overviewLink">Overview</a></dd>
 			<dd><a href="#pkg-index" class="indexLink">Index</a></dd>
--->
-			<dd><a href="#pkg-overview" class="overviewLink">概览</a></dd>
-			<dd><a href="#pkg-index" class="indexLink">索引</a></dd>
 			{{if $.Examples}}
-<!--
 				<dd><a href="#pkg-examples" class="examplesLink">Examples</a></dd>
--->
-				<dd><a href="#pkg-examples" class="examplesLink">示例</a></dd>
 			{{end}}
 			{{if $.Dirs}}
-<!--
 				<dd><a href="#pkg-subdirectories">Subdirectories</a></dd>
--->
-				<dd><a href="#pkg-subdirectories">子目录</a></dd>
 			{{end}}
 			</dl>
 		</div>
 		<!-- The package's Name is printed as title by the top-level template -->
 		<div id="pkg-overview" class="toggleVisible">
 			<div class="collapsed">
-<!--
 				<h2 class="toggleButton" title="Click to show Overview section">Overview ▹</h2>
--->
-				<h2 class="toggleButton" title="点此显示概览">概览 ▹</h2>
 			</div>
 			<div class="expanded">
-<!--
 				<h2 class="toggleButton" title="Click to hide Overview section">Overview ▾</h2>
--->
-				<h2 class="toggleButton" title="点此隐藏概览">概览 ▾</h2>
 				{{comment_html .Doc}}
 			</div>
 		</div>
@@ -60,31 +44,19 @@
 
 		<div id="pkg-index" class="toggleVisible">
 		<div class="collapsed">
-<!--
 			<h2 class="toggleButton" title="Click to show Index section">Index ▹</h2>
--->
-			<h2 class="toggleButton" title="点此显示素引">索引 ▹</h2>
 		</div>
 		<div class="expanded">
-<!--
 			<h2 class="toggleButton" title="Click to hide Index section">Index ▾</h2>
--->
-			<h2 class="toggleButton" title="点此隐藏索引">索引 ▾</h2>
 
 		<!-- Table of contents for API; must be named manual-nav to turn off auto nav. -->
 			<div id="manual-nav">
 			<dl>
 			{{if .Consts}}
-<!--
 				<dd><a href="#pkg-constants">Constants</a></dd>
--->
-				<dd><a href="#pkg-constants">常量</a></dd>
 			{{end}}
 			{{if .Vars}}
-<!--
 				<dd><a href="#pkg-variables">Variables</a></dd>
--->
-				<dd><a href="#pkg-variables">变量</a></dd>
 			{{end}}
 			{{range .Funcs}}
 				{{$name_html := html .Name}}
@@ -112,10 +84,7 @@
 
 		{{if $.Examples}}
 		<div id="pkg-examples">
-<!--
 			<h4>Examples</h4>
--->
-			<h4>示例</h4>
 			<dl>
 			{{range $.Examples}}
 			<dd><a class="exampleLink" href="#example_{{.Name}}">{{example_name .Name}}</a></dd>
@@ -125,10 +94,7 @@
 		{{end}}
 
 		{{with .Filenames}}
-<!--
 			<h4>Package files</h4>
--->
-			<h4>包文件</h4>
 			<p>
 			<span style="font-size:90%">
 			{{range .}}
@@ -141,20 +107,14 @@
 		</div><!-- #pkg-index -->
 
 		{{with .Consts}}
-<!--
 			<h2 id="pkg-constants">Constants</h2>
--->
-			<h2 id="pkg-constants">常量</h2>
 			{{range .}}
 				<pre>{{node_html $ .Decl true}}</pre>
 				{{comment_html .Doc}}
 			{{end}}
 		{{end}}
 		{{with .Vars}}
-<!--
 			<h2 id="pkg-variables">Variables</h2>
--->
-			<h2 id="pkg-variables">变量</h2>
 			{{range .}}
 				<pre>{{node_html $ .Decl true}}</pre>
 				{{comment_html .Doc}}
@@ -225,10 +185,7 @@
 {{with .Dirs}}
 	{{/* DirList entries are numbers and strings - no need for FSet */}}
 	{{if $.PDoc}}
-<!--
 		<h2 id="pkg-subdirectories">Subdirectories</h2>
--->
-		<h2 id="pkg-subdirectories">子目录</h2>
 	{{else}}
 		<div class="pkgGopher">
 			<img class="gopher" src="/doc/gopher/pkg.png"/>
@@ -238,10 +195,7 @@
 	<tr>
 	<th>Name</th>
 	<th>&nbsp;&nbsp;&nbsp;&nbsp;</th>
-<!--
 	<th style="text-align: left; width: auto">Synopsis</th>
--->
-	<th style="text-align: left; width: auto">摘要</th>
 	</tr>
 	{{if not $.DirFlat}}
 		<tr>
@@ -267,9 +221,6 @@
 	{{end}}
 	</table>
 	{{if $.PDoc}}{{else}}
-<!--
 	<p>Need more packages? Check out the <a href="/wiki/SubRepositories">sub-repositories</a> and <a href="/wiki/Projects">other Go projects</a>.</p>
--->
-	<p>需要更多包？看看<a href="/wiki/SubRepositories">子代码库</a>和<a href="/wiki/Projects">其它Go项目</a>吧！</p>
 	{{end}}
 {{end}}
