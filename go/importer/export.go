@@ -21,61 +21,29 @@ const (
 	trace = false // print emitted data
 )
 
-const (
-	magic   = "\n$$ exports $$\n"
-	version = "v0"
-)
-
-// Object and type tags. Must be < 0.
-const (
-	// Packages
-	packageTag = -(iota + 1)
-
-	// Objects
-	constTag
-	typeTag
-	varTag
-	funcTag
-
-	// Types
-	basicTag
-	arrayTag
-	sliceTag
-	structTag
-	pointerTag
-	signatureTag
-	interfaceTag
-	mapTag
-	chanTag
-	namedTag
-
-	// Values
-	intTag
-	floatTag
-	fractionTag
-	complexTag
-	stringTag
-	falseTag
-	trueTag
-)
+// format returns a byte indicating the low-level encoding/decoding format
+// (debug vs product).
+func format() byte {
+	if debug {
+		return 'd'
+	}
+	return 'p'
+}
 
 // ExportData serializes the interface (exported package objects)
 // of package pkg and returns the corresponding data. The export
 // format is described elsewhere (TODO).
 func ExportData(pkg *types.Package) []byte {
 	p := exporter{
-		data: []byte(magic),
-		// TODO(gri) If we can't have nil packages
-		// or types, remove nil entries at index 0.
-		pkgIndex: map[*types.Package]int{nil: 0},
-		typIndex: map[types.Type]int{nil: 0},
+		data:     append([]byte(magic), format()),
+		pkgIndex: make(map[*types.Package]int),
+		typIndex: make(map[types.Type]int),
 	}
 
 	// populate typIndex with predeclared types
-	for _, t := range types.Typ[1:] {
+	for _, t := range predeclared {
 		p.typIndex[t] = len(p.typIndex)
 	}
-	p.typIndex[types.Universe.Lookup("error").Type()] = len(p.typIndex)
 
 	if trace {
 		p.tracef("export %s\n", pkg.Name())
@@ -117,6 +85,10 @@ func (p *exporter) pkg(pkg *types.Package) {
 	if trace {
 		p.tracef("package { ")
 		defer p.tracef("} ")
+	}
+
+	if pkg == nil {
+		panic("unexpected nil pkg")
 	}
 
 	// if the package was seen before, write its index (>= 0)
@@ -174,12 +146,9 @@ func (p *exporter) value(x exact.Value) {
 			tag = trueTag
 		}
 		p.int(tag)
-	case exact.String:
-		p.int(stringTag)
-		p.string(exact.StringVal(x))
 	case exact.Int:
 		if i, ok := exact.Int64Val(x); ok {
-			p.int(intTag)
+			p.int(int64Tag)
 			p.int64(i)
 			return
 		}
@@ -192,6 +161,9 @@ func (p *exporter) value(x exact.Value) {
 		p.int(complexTag)
 		p.fraction(exact.Real(x))
 		p.fraction(exact.Imag(x))
+	case exact.String:
+		p.int(stringTag)
+		p.string(exact.StringVal(x))
 	default:
 		panic(fmt.Sprintf("unexpected value kind %d", kind))
 	}
@@ -218,6 +190,8 @@ func (p *exporter) fraction(x exact.Value) {
 	p.ufloat(exact.Denom(x))
 }
 
+// ufloat writes abs(x) in form of a binary exponent
+// followed by its mantissa bytes; x must be != 0.
 func (p *exporter) ufloat(x exact.Value) {
 	mant := exact.Bytes(x)
 	exp8 := -1
@@ -249,16 +223,6 @@ func (p *exporter) typ(typ types.Type) {
 
 	// otherwise, write the type tag (< 0) and type data
 	switch t := typ.(type) {
-	case *types.Basic:
-		// Basic types are pre-recorded and don't usually end up here.
-		// However, the alias types byte and rune are not in the types.Typ
-		// table and get emitted here (once per package, if they appear).
-		// This permits faithful reconstruction of the alias type (i.e.,
-		// keeping the name). If we decide to eliminate the distinction
-		// between the alias types, this code can go.
-		p.int(basicTag)
-		p.string(t.Name())
-
 	case *types.Array:
 		p.int(arrayTag)
 		p.int64(t.Len())
@@ -288,6 +252,13 @@ func (p *exporter) typ(typ types.Type) {
 	case *types.Interface:
 		p.int(interfaceTag)
 
+		// write embedded interfaces
+		m := t.NumEmbeddeds()
+		p.int(m)
+		for i := 0; i < m; i++ {
+			p.typ(t.Embedded(i))
+		}
+
 		// write methods
 		n := t.NumExplicitMethods()
 		p.int(n)
@@ -295,13 +266,6 @@ func (p *exporter) typ(typ types.Type) {
 			m := t.ExplicitMethod(i)
 			p.qualifiedName(m.Pkg(), m.Name())
 			p.typ(m.Type())
-		}
-
-		// write embedded interfaces
-		m := t.NumEmbeddeds()
-		p.int(m)
-		for i := 0; i < m; i++ {
-			p.typ(t.Embedded(i))
 		}
 
 	case *types.Map:
@@ -346,6 +310,8 @@ func (p *exporter) field(f *types.Var) {
 		name = f.Name()
 	}
 
+	// qualifiedName will always emit the field package for
+	// anonymous fields because "" is not an exported name.
 	p.qualifiedName(f.Pkg(), name)
 	p.typ(f.Type())
 }
@@ -366,15 +332,23 @@ func (p *exporter) signature(sig *types.Signature) {
 	//           for interface methods if we flatten them
 	//           out. If we track embedded types instead,
 	//           the information is already present.
+	// We do need the receiver information (T vs *T)
+	// for methods associated with named types.
 	if recv := sig.Recv(); recv != nil {
-		p.bool(true)
+		// 1-element tuple
+		p.int(1)
 		p.param(recv)
 	} else {
-		p.bool(false)
+		// 0-element tuple
+		p.int(0)
 	}
 	p.tuple(sig.Params())
 	p.tuple(sig.Results())
-	p.bool(sig.IsVariadic())
+	if sig.Variadic() {
+		p.int(1)
+	} else {
+		p.int(0)
+	}
 }
 
 func (p *exporter) param(v *types.Var) {
@@ -393,17 +367,8 @@ func (p *exporter) tuple(t *types.Tuple) {
 // ----------------------------------------------------------------------------
 // encoders
 
-func (p *exporter) bool(b bool) {
-	var x int64
-	if b {
-		x = 1
-	}
-	p.int64(x)
-}
-
 func (p *exporter) string(s string) {
-	// TODO(gri) consider inlining this to avoid an extra allocation
-	p.bytes([]byte(s))
+	p.bytes([]byte(s)) // (could be inlined if extra allocation matters)
 }
 
 func (p *exporter) int(x int) {
@@ -438,8 +403,8 @@ func (p *exporter) bytes(b []byte) {
 }
 
 // marker emits a marker byte and position information which makes
-// it easy for a reader to detect if it is "out of sync". Used in
-// debug mode only.
+// it easy for a reader to detect if it is "out of sync". Used for
+// debug format only.
 func (p *exporter) marker(m byte) {
 	if debug {
 		p.data = append(p.data, m)

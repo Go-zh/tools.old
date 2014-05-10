@@ -17,6 +17,7 @@ import (
 	"go/format"
 	"go/printer"
 	"go/token"
+	htmltemplate "html/template"
 	"io"
 	"log"
 	"os"
@@ -75,6 +76,7 @@ func (p *Presentation) initFuncMap() {
 		"node_html":    p.node_htmlFunc,
 		"comment_html": comment_htmlFunc,
 		"comment_text": comment_textFunc,
+		"sanitize":     sanitizeFunc,
 
 		// support for URL attributes
 		"pkgLink":     pkgLinkFunc,
@@ -88,6 +90,11 @@ func (p *Presentation) initFuncMap() {
 		"example_text":   p.example_textFunc,
 		"example_name":   p.example_nameFunc,
 		"example_suffix": p.example_suffixFunc,
+
+		// formatting of analysis information
+		"callgraph_html":  p.callgraph_htmlFunc,
+		"implements_html": p.implements_htmlFunc,
+		"methodset_html":  p.methodset_htmlFunc,
 
 		// formatting of Notes
 		"noteTitle": noteTitle,
@@ -208,10 +215,62 @@ func comment_htmlFunc(comment string) string {
 // want to avoid that mistake here.
 const punchCardWidth = 80
 
+func containsOnlySpace(buf []byte) bool {
+	isNotSpace := func(r rune) bool { return !unicode.IsSpace(r) }
+	return bytes.IndexFunc(buf, isNotSpace) == -1
+}
+
 func comment_textFunc(comment, indent, preIndent string) string {
 	var buf bytes.Buffer
 	doc.ToText(&buf, comment, indent, preIndent, punchCardWidth-2*len(indent))
+	if containsOnlySpace(buf.Bytes()) {
+		return ""
+	}
 	return buf.String()
+}
+
+// sanitizeFunc sanitizes the argument src by replacing newlines with
+// blanks, removing extra blanks, and by removing trailing whitespace
+// and commas before closing parentheses.
+func sanitizeFunc(src string) string {
+	buf := make([]byte, len(src))
+	j := 0      // buf index
+	comma := -1 // comma index if >= 0
+	for i := 0; i < len(src); i++ {
+		ch := src[i]
+		switch ch {
+		case '\t', '\n', ' ':
+			// ignore whitespace at the beginning, after a blank, or after opening parentheses
+			if j == 0 {
+				continue
+			}
+			if p := buf[j-1]; p == ' ' || p == '(' || p == '{' || p == '[' {
+				continue
+			}
+			// replace all whitespace with blanks
+			ch = ' '
+		case ',':
+			comma = j
+		case ')', '}', ']':
+			// remove any trailing comma
+			if comma >= 0 {
+				j = comma
+			}
+			// remove any trailing whitespace
+			if j > 0 && buf[j-1] == ' ' {
+				j--
+			}
+		default:
+			comma = -1
+		}
+		buf[j] = ch
+		j++
+	}
+	// remove trailing blank, if any
+	if j > 0 && buf[j-1] == ' ' {
+		j--
+	}
+	return string(buf[:j])
 }
 
 type PageInfo struct {
@@ -219,12 +278,19 @@ type PageInfo struct {
 	Err     error  // error or nil
 
 	// package info
-	FSet     *token.FileSet         // nil if no package documentation
-	PDoc     *doc.Package           // nil if no package documentation
-	Examples []*doc.Example         // nil if no example code
-	Notes    map[string][]*doc.Note // nil if no package Notes
-	PAst     *ast.File              // nil if no AST with package exports
-	IsMain   bool                   // true for package main
+	FSet       *token.FileSet         // nil if no package documentation
+	PDoc       *doc.Package           // nil if no package documentation
+	Examples   []*doc.Example         // nil if no example code
+	Notes      map[string][]*doc.Note // nil if no package Notes
+	PAst       map[string]*ast.File   // nil if no AST with package exports
+	IsMain     bool                   // true for package main
+	IsFiltered bool                   // true if results were filtered
+
+	// analysis info
+	TypeInfoIndex  map[string]int  // index of JSON datum for type T (if -analysis=type)
+	AnalysisData   htmltemplate.JS // array of TypeInfoJSON values
+	CallGraph      htmltemplate.JS // array of PCGNodeJSON values    (if -analysis=pointer)
+	CallGraphIndex map[string]int  // maps func name to index in CallGraph
 
 	// directory info
 	Dirs    *DirList  // nil if no directory information
@@ -279,6 +345,7 @@ func newPosLink_urlFunc(srcPosLinkFunc func(s string, line, low, high int) strin
 }
 
 func srcPosLinkFunc(s string, line, low, high int) string {
+	s = srcLinkFunc(s)
 	var buf bytes.Buffer
 	template.HTMLEscape(&buf, []byte(s))
 	// selection ranges are of form "s=low:high"
@@ -300,7 +367,11 @@ func srcPosLinkFunc(s string, line, low, high int) string {
 }
 
 func srcLinkFunc(s string) string {
-	return pathpkg.Clean("/" + s)
+	s = pathpkg.Clean("/" + s)
+	if !strings.HasPrefix(s, "/src/pkg/") {
+		s = "/src/pkg" + s
+	}
+	return s
 }
 
 // queryLinkFunc returns a URL for a line in a source file with a highlighted
@@ -442,6 +513,64 @@ func (p *Presentation) example_suffixFunc(name string) string {
 	return suffix
 }
 
+// implements_html returns the "> Implements" toggle for a package-level named type.
+// Its contents are populated from JSON data by client-side JS at load time.
+func (p *Presentation) implements_htmlFunc(info *PageInfo, typeName string) string {
+	if p.ImplementsHTML == nil {
+		return ""
+	}
+	index, ok := info.TypeInfoIndex[typeName]
+	if !ok {
+		return ""
+	}
+	var buf bytes.Buffer
+	err := p.ImplementsHTML.Execute(&buf, struct{ Index int }{index})
+	if err != nil {
+		log.Print(err)
+	}
+	return buf.String()
+}
+
+// methodset_html returns the "> Method set" toggle for a package-level named type.
+// Its contents are populated from JSON data by client-side JS at load time.
+func (p *Presentation) methodset_htmlFunc(info *PageInfo, typeName string) string {
+	if p.MethodSetHTML == nil {
+		return ""
+	}
+	index, ok := info.TypeInfoIndex[typeName]
+	if !ok {
+		return ""
+	}
+	var buf bytes.Buffer
+	err := p.MethodSetHTML.Execute(&buf, struct{ Index int }{index})
+	if err != nil {
+		log.Print(err)
+	}
+	return buf.String()
+}
+
+// callgraph_html returns the "> Call graph" toggle for a package-level func.
+// Its contents are populated from JSON data by client-side JS at load time.
+func (p *Presentation) callgraph_htmlFunc(info *PageInfo, recv, name string) string {
+	if p.CallGraphHTML == nil {
+		return ""
+	}
+	if recv != "" {
+		// Format must match (*ssa.Function).RelString().
+		name = fmt.Sprintf("(%s).%s", recv, name)
+	}
+	index, ok := info.CallGraphIndex[name]
+	if !ok {
+		return ""
+	}
+	var buf bytes.Buffer
+	err := p.CallGraphHTML.Execute(&buf, struct{ Index int }{index})
+	if err != nil {
+		log.Print(err)
+	}
+	return buf.String()
+}
+
 func noteTitle(note string) string {
 	return strings.Title(strings.ToLower(note))
 }
@@ -492,7 +621,8 @@ func (p *Presentation) writeNode(w io.Writer, fset *token.FileSet, x interface{}
 	}
 }
 
-// WriteNote writes x to w.
+// WriteNode writes x to w.
+// TODO(bgarcia) Is this method needed? It's just a wrapper for p.writeNode.
 func (p *Presentation) WriteNode(w io.Writer, fset *token.FileSet, x interface{}) {
 	p.writeNode(w, fset, x)
 }

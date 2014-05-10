@@ -189,7 +189,11 @@ func (f *File) checkShadowDecl(d *ast.GenDecl) {
 
 // checkShadowing checks whether the identifier shadows an identifier in an outer scope.
 func (f *File) checkShadowing(ident *ast.Ident) {
-	obj := f.pkg.idents[ident]
+	if ident.Name == "_" {
+		// Can't shadow the blank identifier.
+		return
+	}
+	obj := f.pkg.defs[ident]
 	if obj == nil {
 		return
 	}
@@ -221,7 +225,7 @@ func (f *File) checkShadowing(ident *ast.Ident) {
 		}
 	}
 	// Don't complain if the types differ: that implies the programmer really wants two variables.
-	if types.IsIdentical(obj.Type(), shadowed.Type()) {
+	if types.Identical(obj.Type(), shadowed.Type()) {
 		f.Badf(ident.Pos(), "declaration of %s shadows declaration at %s", obj.Name(), f.loc(shadowed.Pos()))
 	}
 }

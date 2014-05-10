@@ -347,7 +347,7 @@ func (p *parser) getPkg(id, name string) *types.Package {
 	}
 	pkg := p.imports[id]
 	if pkg == nil && name != "" {
-		pkg = types.NewPackage(id, name, types.NewScope(nil))
+		pkg = types.NewPackage(id, name)
 		p.imports[id] = pkg
 	}
 	return pkg
@@ -434,7 +434,7 @@ func (p *parser) parseName(materializePkg bool) (pkg *types.Package, name string
 			// doesn't exist yet, create a fake package instead
 			pkg = p.getPkg(id, "")
 			if pkg == nil {
-				pkg = types.NewPackage(id, "", nil)
+				pkg = types.NewPackage(id, "")
 			}
 		}
 	default:
@@ -463,9 +463,7 @@ func (p *parser) parseField() (*types.Var, string) {
 			pkg = nil
 			name = typ.Name()
 		case *types.Named:
-			obj := typ.Obj()
-			pkg = obj.Pkg() // TODO(gri) is this still correct?
-			name = obj.Name()
+			name = typ.Obj().Name()
 		default:
 			p.errorf("anonymous field expected")
 		}
@@ -877,8 +875,11 @@ func (p *parser) parseMethodDecl() {
 	base := deref(recv.Type()).(*types.Named)
 
 	// parse method name, signature, and possibly inlined body
-	pkg, name := p.parseName(true)
+	_, name := p.parseName(true)
 	sig := p.parseFunc(recv)
+
+	// methods always belong to the same package as the base type object
+	pkg := base.Obj().Pkg()
 
 	// add method to type unless type was imported before
 	// and method exists already

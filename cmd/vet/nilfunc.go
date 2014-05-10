@@ -41,9 +41,9 @@ func (f *File) checkNilFuncComparison(e *ast.BinaryExpr) {
 	var obj types.Object
 	switch v := e2.(type) {
 	case *ast.Ident:
-		obj = f.pkg.idents[v]
+		obj = f.pkg.uses[v]
 	case *ast.SelectorExpr:
-		obj = f.pkg.idents[v.Sel]
+		obj = f.pkg.uses[v.Sel]
 	default:
 		return
 	}
@@ -59,5 +59,5 @@ func (f *File) checkNilFuncComparison(e *ast.BinaryExpr) {
 // isNil reports whether the provided expression is the built-in nil
 // identifier.
 func (f *File) isNil(e ast.Expr) bool {
-	return f.pkg.types[e] == types.Typ[types.UntypedNil]
+	return f.pkg.types[e].Type == types.Typ[types.UntypedNil]
 }

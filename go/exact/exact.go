@@ -2,12 +2,14 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package exact implements mathematically exact values
-// and operations for untyped Go constant values.
+// Package exact implements Values representing untyped
+// Go constants and the corresponding operations. Values
+// and operations have unlimited precision.
 //
-// A special Unknown value may be used when a constant
-// value is unknown due to an error; operations on unknown
-// values produce unknown values.
+// A special Unknown value may be used when a value
+// is unknown due to an error. Operations on unknown
+// values produce unknown values unless specified
+// otherwise.
 //
 package exact
 
@@ -38,7 +40,7 @@ const (
 	Complex
 )
 
-// A Value represents a mathematically precise value of a given Kind.
+// A Value represents a mathematically exact value of a given Kind.
 type Value interface {
 	// Kind returns the value kind; it is always the smallest
 	// kind in which the value can be represented exactly.
@@ -180,7 +182,6 @@ func MakeFromLiteral(lit string, tok token.Token) Value {
 		}
 	}
 
-	// TODO(gri) should we return an Unknown instead?
 	return nil
 }
 
@@ -245,7 +246,9 @@ func Uint64Val(x Value) (uint64, bool) {
 }
 
 // Float64Val returns the nearest Go float64 value of x and whether the result is exact;
-// x must be numeric but not Complex, or Unknown.
+// x must be numeric but not Complex, or Unknown. For values too small (too close to 0)
+// to represent as float64, Float64Val silently underflows to 0. The result sign always
+// matches the sign of x, even for 0.
 // If x is Unknown, the result is (0, false).
 func Float64Val(x Value) (float64, bool) {
 	switch x := x.(type) {
@@ -378,7 +381,8 @@ func MakeFromBytes(bytes []byte) Value {
 // Support for disassembling fractions
 
 // Num returns the numerator of x; x must be Int, Float, or Unknown.
-// If x is Unknown, the result is Unknown, otherwise it is an Int.
+// If x is Unknown, the result is Unknown, otherwise it is an Int
+// with the same sign as x.
 func Num(x Value) Value {
 	switch x := x.(type) {
 	case unknownVal, int64Val, intVal:

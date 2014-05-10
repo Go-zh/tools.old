@@ -17,9 +17,9 @@ func indexes() {
 	_ = a[- /* ERROR "negative" */ 1]
 	_ = a[- /* ERROR "negative" */ 1 :]
 	_ = a[: - /* ERROR "negative" */ 1]
-	_ = a[::] /* ERROR "3-index slice" */
-	_ = a[0::] /* ERROR "3-index slice" */
-	_ = a[0::10] /* ERROR "3-index slice" */
+	_ = a[: /* ERROR "2nd index required" */ : /* ERROR "3rd index required" */ ]
+	_ = a[0: /* ERROR "2nd index required" */ : /* ERROR "3rd index required" */ ]
+	_ = a[0: /* ERROR "2nd index required" */ :10]
 	_ = a[:10:10]
 
 	var a0 int
@@ -44,6 +44,7 @@ func indexes() {
 	_ = a[10:0:10] /* ERROR "invalid slice indices" */
 	_ = a[0:10:0] /* ERROR "invalid slice indices" */
 	_ = a[10:0:0] /* ERROR "invalid slice indices" */
+	_ = &a /* ERROR "cannot take address" */ [:10]
 
 	pa := &a
 	_ = pa[9]
@@ -61,6 +62,7 @@ func indexes() {
 	_ = pa[10:0:10] /* ERROR "invalid slice indices" */
 	_ = pa[0:10:0] /* ERROR "invalid slice indices" */
 	_ = pa[10:0:0] /* ERROR "invalid slice indices" */
+	_ = &pa /* ERROR "cannot take address" */ [:10]
 
 	var b [0]int
 	_ = b[0 /* ERROR "index .* out of bounds" */ ]
@@ -82,11 +84,12 @@ func indexes() {
 	_ = s[: 1 /* ERROR "overflows" */ <<100]
 	_ = s[1 /* ERROR "overflows" */ <<100 :]
 	_ = s[1 /* ERROR "overflows" */ <<100 : 1 /* ERROR "overflows" */ <<100]
-	_ = s[::] /* ERROR "3-index slice" */
+	_ = s[: /* ERROR "2nd index required" */ :  /* ERROR "3rd index required" */ ]
 	_ = s[:10:10]
 	_ = s[10:0:10] /* ERROR "invalid slice indices" */
 	_ = s[0:10:0] /* ERROR "invalid slice indices" */
 	_ = s[10:0:0] /* ERROR "invalid slice indices" */
+	_ = &s /* ERROR "cannot take address" */ [:10]
 
 	var t string
 	_ = t[- /* ERROR "negative" */ 1]

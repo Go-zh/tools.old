@@ -11,12 +11,14 @@ import "code.google.com/p/go.tools/go/exact"
 // Conversion type-checks the conversion T(x).
 // The result is in x.
 func (check *checker) conversion(x *operand, T Type) {
+	constArg := x.mode == constant
+
 	var ok bool
 	switch {
-	case x.mode == constant && isConstType(T):
+	case constArg && isConstType(T):
 		// constant conversion
 		switch t := T.Underlying().(*Basic); {
-		case isRepresentableConst(x.val, check.conf, t.kind, &x.val):
+		case representableConst(x.val, check.conf, t.kind, &x.val):
 			ok = true
 		case x.isInteger() && isString(t):
 			codepoint := int64(-1)
@@ -29,7 +31,7 @@ func (check *checker) conversion(x *operand, T Type) {
 			x.val = exact.MakeString(string(codepoint))
 			ok = true
 		}
-	case x.isConvertible(check.conf, T):
+	case x.convertibleTo(check.conf, T):
 		// non-constant conversion
 		x.mode = value
 		ok = true
@@ -45,23 +47,25 @@ func (check *checker) conversion(x *operand, T Type) {
 	// conversion provides the type, per the spec: "A constant may be
 	// given a type explicitly by a constant declaration or conversion,...".
 	final := x.typ
-	if isUntyped(final) {
+	if isUntyped(x.typ) {
 		final = T
-		// For conversions to interfaces, use the argument type's
-		// default type instead. Keep untyped nil for untyped nil
-		// arguments.
-		if isInterface(T) {
+		// - For conversions to interfaces, use the argument's default type.
+		// - For conversions of untyped constants to non-constant types, also
+		//   use the default type (e.g., []byte("foo") should report string
+		//   not []byte as type for the constant "foo").
+		// - Keep untyped nil for untyped nil arguments.
+		if isInterface(T) || constArg && !isConstType(T) {
 			final = defaultType(x.typ)
 		}
+		check.updateExprType(x.expr, final, true)
 	}
 
 	x.typ = T
-	check.updateExprType(x.expr, final, true)
 }
 
-func (x *operand) isConvertible(conf *Config, T Type) bool {
+func (x *operand) convertibleTo(conf *Config, T Type) bool {
 	// "x is assignable to T"
-	if x.isAssignableTo(conf, T) {
+	if x.assignableTo(conf, T) {
 		return true
 	}
 
@@ -69,14 +73,14 @@ func (x *operand) isConvertible(conf *Config, T Type) bool {
 	V := x.typ
 	Vu := V.Underlying()
 	Tu := T.Underlying()
-	if IsIdentical(Vu, Tu) {
+	if Identical(Vu, Tu) {
 		return true
 	}
 
 	// "x's type and T are unnamed pointer types and their pointer base types have identical underlying types"
 	if V, ok := V.(*Pointer); ok {
 		if T, ok := T.(*Pointer); ok {
-			if IsIdentical(V.base.Underlying(), T.base.Underlying()) {
+			if Identical(V.base.Underlying(), T.base.Underlying()) {
 				return true
 			}
 		}
@@ -122,7 +126,7 @@ func isUintptr(typ Type) bool {
 
 func isUnsafePointer(typ Type) bool {
 	// TODO(gri): Is this (typ.Underlying() instead of just typ) correct?
-	//            The spec does't say so, but gc claims it is. See also
+	//            The spec does not say so, but gc claims it is. See also
 	//            issue 6326.
 	t, ok := typ.Underlying().(*Basic)
 	return ok && t.kind == UnsafePointer

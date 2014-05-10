@@ -24,19 +24,19 @@ const (
 // A Selection describes a selector expression x.f.
 // For the declarations:
 //
-// 	type T struct{ x int; E }
-// 	type E struct{}
-// 	func (e E) m() {}
-// 	var p *T
+//	type T struct{ x int; E }
+//	type E struct{}
+//	func (e E) m() {}
+//	var p *T
 //
 // the following relations exist:
 //
 //	Selector    Kind          Recv    Obj    Type               Index     Indirect
 //
-//      p.x         FieldVal      T       x      int                {0}       true
-//      p.m         MethodVal     *T      m      func (e *T) m()    {1, 0}    true
-//      T.m         MethodExpr    T       m      func m(_ T)        {1, 0}    false
-//      math.Pi     PackageObj    nil     Pi     untyped numeric    nil       false
+//	p.x         FieldVal      T       x      int                {0}       true
+//	p.m         MethodVal     *T      m      func (e *T) m()    {1, 0}    true
+//	T.m         MethodExpr    T       m      func m(_ T)        {1, 0}    false
+//	math.Pi     PackageObj    nil     Pi     untyped numeric    nil       false
 //
 type Selection struct {
 	kind     SelectionKind
@@ -84,6 +84,7 @@ func (s *Selection) Type() Type {
 		// TODO(gri) Similar code is already in call.go - factor!
 		sig := *s.obj.(*Func).typ.(*Signature)
 		arg0 := *sig.recv
+		sig.recv = nil
 		arg0.typ = s.recv
 		var params []*Var
 		if sig.params != nil {
@@ -122,6 +123,12 @@ func (s *Selection) String() string { return SelectionString(nil, s) }
 // Type names are printed package-qualified
 // only if they do not belong to this package.
 //
+// Examples:
+//	"field (T) f int"
+//	"method (T) f(X) Y"
+//	"method expr (T) f(X) Y"
+//	"qualified ident var math.Pi float64"
+//
 func SelectionString(this *Package, s *Selection) string {
 	var k string
 	switch s.kind {
@@ -141,6 +148,12 @@ func SelectionString(this *Package, s *Selection) string {
 	buf.WriteByte('(')
 	WriteType(&buf, this, s.Recv())
 	fmt.Fprintf(&buf, ") %s", s.obj.Name())
-	writeSignature(&buf, this, s.Type().(*Signature))
+	if T := s.Type(); s.kind == FieldVal {
+		// TODO(adonovan): use "T.f" not "(T) f".
+		buf.WriteByte(' ')
+		WriteType(&buf, this, T)
+	} else {
+		WriteSignature(&buf, this, T.(*Signature))
+	}
 	return buf.String()
 }

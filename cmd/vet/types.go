@@ -10,29 +10,31 @@ import (
 	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go.tools/go/exact"
 	"code.google.com/p/go.tools/go/types"
 )
 
 func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) error {
-	pkg.idents = make(map[*ast.Ident]types.Object)
+	pkg.defs = make(map[*ast.Ident]types.Object)
+	pkg.uses = make(map[*ast.Ident]types.Object)
 	pkg.spans = make(map[types.Object]Span)
-	pkg.types = make(map[ast.Expr]types.Type)
-	pkg.values = make(map[ast.Expr]exact.Value)
+	pkg.types = make(map[ast.Expr]types.TypeAndValue)
 	// By providing a Config with our own error function, it will continue
 	// past the first error. There is no need for that function to do anything.
 	config := types.Config{
 		Error: func(error) {},
 	}
 	info := &types.Info{
-		Types:   pkg.types,
-		Values:  pkg.values,
-		Objects: pkg.idents,
+		Types: pkg.types,
+		Defs:  pkg.defs,
+		Uses:  pkg.uses,
 	}
 	typesPkg, err := config.Check(pkg.path, fs, astFiles, info)
 	pkg.typesPkg = typesPkg
 	// update spans
-	for id, obj := range pkg.idents {
+	for id, obj := range pkg.defs {
+		pkg.growSpan(id, obj)
+	}
+	for id, obj := range pkg.uses {
 		pkg.growSpan(id, obj)
 	}
 	return err
@@ -42,7 +44,7 @@ func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) error {
 // If it is not (probably a struct), it returns a printable form of the type.
 func (pkg *Package) isStruct(c *ast.CompositeLit) (bool, string) {
 	// Check that the CompositeLit's type is a slice or array (which needs no field keys), if possible.
-	typ := pkg.types[c]
+	typ := pkg.types[c].Type
 	// If it's a named type, pull out the underlying type. If it's not, the Underlying
 	// method returns the type itself.
 	actual := typ
@@ -91,7 +93,7 @@ func (f *File) matchArgTypeInternal(t printfArgType, typ types.Type, arg ast.Exp
 	}
 	if typ == nil {
 		// external call
-		typ = f.pkg.types[arg]
+		typ = f.pkg.types[arg].Type
 		if typ == nil {
 			return true // probably a type check problem
 		}
@@ -101,12 +103,12 @@ func (f *File) matchArgTypeInternal(t printfArgType, typ types.Type, arg ast.Exp
 	// if its method set contains a Format function. We could do better,
 	// even now, but we don't need to be 100% accurate. Wait for 6259 to
 	// be fixed instead. TODO.
-	if hasMethod(typ, "Format") {
+	if f.hasMethod(typ, "Format") {
 		return true
 	}
 	// If we can use a string, might arg (dynamically) implement the Stringer or Error interface?
 	if t&argString != 0 {
-		if types.Implements(typ, errorType, false) || types.Implements(typ, stringerType, false) {
+		if types.AssertableTo(errorType, typ) || types.AssertableTo(stringerType, typ) {
 			return true
 		}
 	}
@@ -132,7 +134,7 @@ func (f *File) matchArgTypeInternal(t printfArgType, typ types.Type, arg ast.Exp
 
 	case *types.Array:
 		// Same as slice.
-		if types.IsIdentical(typ.Elem().Underlying(), types.Typ[types.Byte]) && t&argString != 0 {
+		if types.Identical(typ.Elem().Underlying(), types.Typ[types.Byte]) && t&argString != 0 {
 			return true // %s matches []byte
 		}
 		// Recur: []int matches %d.
@@ -140,7 +142,7 @@ func (f *File) matchArgTypeInternal(t printfArgType, typ types.Type, arg ast.Exp
 
 	case *types.Slice:
 		// Same as array.
-		if types.IsIdentical(typ.Elem().Underlying(), types.Typ[types.Byte]) && t&argString != 0 {
+		if types.Identical(typ.Elem().Underlying(), types.Typ[types.Byte]) && t&argString != 0 {
 			return true // %s matches []byte
 		}
 		// Recur: []int matches %d. But watch out for
@@ -250,7 +252,7 @@ func (f *File) matchStructArgType(t printfArgType, typ *types.Struct, arg ast.Ex
 // being called has.
 func (f *File) numArgsInSignature(call *ast.CallExpr) int {
 	// Check the type of the function or method declaration
-	typ := f.pkg.types[call.Fun]
+	typ := f.pkg.types[call.Fun].Type
 	if typ == nil {
 		return 0
 	}
@@ -266,10 +268,10 @@ func (f *File) numArgsInSignature(call *ast.CallExpr) int {
 //	func Error() string
 // where "string" is the universe's string type. We know the method is called "Error".
 func (f *File) isErrorMethodCall(call *ast.CallExpr) bool {
-	typ := f.pkg.types[call]
+	typ := f.pkg.types[call].Type
 	if typ != nil {
 		// We know it's called "Error", so just check the function signature.
-		return types.IsIdentical(f.pkg.types[call.Fun], stringerMethodType)
+		return types.Identical(f.pkg.types[call.Fun].Type, stringerMethodType)
 	}
 	// Without types, we can still check by hand.
 	// Is it a selector expression? Otherwise it's a function call, not a method call.
@@ -282,7 +284,7 @@ func (f *File) isErrorMethodCall(call *ast.CallExpr) bool {
 		return false
 	}
 	// Check the type of the method declaration
-	typ = f.pkg.types[sel]
+	typ = f.pkg.types[sel].Type
 	if typ == nil {
 		return false
 	}
@@ -311,13 +313,10 @@ func (f *File) isErrorMethodCall(call *ast.CallExpr) bool {
 
 // hasMethod reports whether the type contains a method with the given name.
 // It is part of the workaround for Formatters and should be deleted when
-// that workaround is no longer necessary. TODO: delete when fixed.
-func hasMethod(typ types.Type, name string) bool {
-	set := typ.MethodSet()
-	for i := 0; i < set.Len(); i++ {
-		if set.At(i).Obj().Name() == name {
-			return true
-		}
-	}
-	return false
+// that workaround is no longer necessary.
+// TODO: This could be better once issue 6259 is fixed.
+func (f *File) hasMethod(typ types.Type, name string) bool {
+	obj, _, _ := types.LookupFieldOrMethod(typ, f.pkg.typesPkg, name)
+	_, ok := obj.(*types.Func)
+	return ok
 }

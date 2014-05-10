@@ -24,13 +24,13 @@ type Sizes interface {
 // StdSizes is a convenience type for creating commonly used Sizes.
 // It makes the following simplifying assumptions:
 //
-// - The size of explicitly sized basic types (int16, etc.) is the
-//   specified size.
-// - The size of strings, functions, and interfaces is 2*WordSize.
-// - The size of slices is 3*WordSize.
-// - All other types have size WordSize.
-// - Arrays and structs are aligned per spec definition; all other
-//   types are naturally aligned with a maximum alignment MaxAlign.
+//	- The size of explicitly sized basic types (int16, etc.) is the
+//	  specified size.
+//	- The size of strings and interfaces is 2*WordSize.
+//	- The size of slices is 3*WordSize.
+//	- All other types have size WordSize.
+//	- Arrays and structs are aligned per spec definition; all other
+//	  types are naturally aligned with a maximum alignment MaxAlign.
 //
 // *StdSizes implements Sizes.
 //
@@ -82,13 +82,33 @@ func (s *StdSizes) Offsetsof(fields []*Var) []int64 {
 	return offsets
 }
 
+var basicSizes = [...]byte{
+	Bool:       1,
+	Int8:       1,
+	Int16:      2,
+	Int32:      4,
+	Int64:      8,
+	Uint8:      1,
+	Uint16:     2,
+	Uint32:     4,
+	Uint64:     8,
+	Float32:    4,
+	Float64:    8,
+	Complex64:  8,
+	Complex128: 16,
+}
+
 func (s *StdSizes) Sizeof(T Type) int64 {
 	switch t := T.Underlying().(type) {
 	case *Basic:
-		if z := t.size; z > 0 {
-			return z
+		assert(isTyped(T))
+		k := t.kind
+		if int(k) < len(basicSizes) {
+			if s := basicSizes[k]; s > 0 {
+				return int64(s)
+			}
 		}
-		if t.kind == String {
+		if k == String {
 			return s.WordSize * 2
 		}
 	case *Array:
@@ -109,7 +129,7 @@ func (s *StdSizes) Sizeof(T Type) int64 {
 			t.offsets = offsets
 		}
 		return offsets[n-1] + s.Sizeof(t.fields[n-1].typ)
-	case *Signature, *Interface:
+	case *Interface:
 		return s.WordSize * 2
 	}
 	return s.WordSize // catch-all

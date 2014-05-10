@@ -24,31 +24,43 @@ import (
 // data.
 func ImportData(imports map[string]*types.Package, data []byte) (*types.Package, error) {
 	// check magic string
-	if n := len(magic); len(data) < n || string(data[:n]) != magic {
-		return nil, fmt.Errorf("incorrect magic string: got %q; want %q", data[:n], magic)
+	var s string
+	if len(data) >= len(magic) {
+		s = string(data[:len(magic)])
+		data = data[len(magic):]
+	}
+	if s != magic {
+		return nil, fmt.Errorf("incorrect magic string: got %q; want %q", s, magic)
+	}
+
+	// check low-level encoding format
+	var m byte = 'm' // missing format
+	if len(data) > 0 {
+		m = data[0]
+		data = data[1:]
+	}
+	if m != format() {
+		return nil, fmt.Errorf("incorrect low-level encoding format: got %c; want %c", m, format())
 	}
 
 	p := importer{
-		data:     data[len(magic):],
+		data:     data,
 		imports:  imports,
-		pkgList:  []*types.Package{nil},
-		typList:  []types.Type{nil},
-		consumed: len(magic), // for debugging only
+		consumed: len(magic) + 1, // for debugging only
 	}
 
 	// populate typList with predeclared types
-	for _, t := range types.Typ[1:] {
+	for _, t := range predeclared {
 		p.typList = append(p.typList, t)
 	}
-	p.typList = append(p.typList, types.Universe.Lookup("error").Type())
 
 	if v := p.string(); v != version {
-		return nil, fmt.Errorf("unknown version: got %d; want %d", v, version)
+		return nil, fmt.Errorf("unknown version: got %s; want %s", v, version)
 	}
 
 	pkg := p.pkg()
-	if debug && p.pkgList[1] != pkg {
-		panic("imported packaged not found in pkgList[1]")
+	if debug && p.pkgList[0] != pkg {
+		panic("imported packaged not found in pkgList[0]")
 	}
 
 	// read objects
@@ -96,7 +108,7 @@ func (p *importer) pkg() *types.Package {
 	// if the package was imported before, use that one; otherwise create a new one
 	pkg := p.imports[path]
 	if pkg == nil {
-		pkg = types.NewPackage(path, name, types.NewScope(nil))
+		pkg = types.NewPackage(path, name)
 		p.imports[path] = pkg
 	}
 	p.pkgList = append(p.pkgList, pkg)
@@ -132,9 +144,7 @@ func (p *importer) value() exact.Value {
 		return exact.MakeBool(false)
 	case trueTag:
 		return exact.MakeBool(true)
-	case stringTag:
-		return exact.MakeString(p.string())
-	case intTag:
+	case int64Tag:
 		return exact.MakeInt64(p.int64())
 	case floatTag:
 		return p.float()
@@ -144,6 +154,8 @@ func (p *importer) value() exact.Value {
 		re := p.fraction()
 		im := p.fraction()
 		return exact.BinaryOp(re, token.ADD, exact.MakeImag(im))
+	case stringTag:
+		return exact.MakeString(p.string())
 	default:
 		panic(fmt.Sprintf("unexpected value kind %d", kind))
 	}
@@ -201,11 +213,6 @@ func (p *importer) typ() types.Type {
 
 	// otherwise, i is the type tag (< 0)
 	switch i {
-	case basicTag:
-		t := types.Universe.Lookup(p.string()).(*types.TypeName).Type().(*types.Basic)
-		p.record(t)
-		return t
-
 	case arrayTag:
 		t := new(types.Array)
 		p.record(t)
@@ -253,16 +260,19 @@ func (p *importer) typ() types.Type {
 		t := new(types.Interface)
 		p.record(t)
 
+		// read embedded interfaces
+		embeddeds := make([]*types.Named, p.int())
+		for i := range embeddeds {
+			embeddeds[i] = p.typ().(*types.Named)
+		}
+
+		// read methods
 		methods := make([]*types.Func, p.int())
 		for i := range methods {
 			pkg, name := p.qualifiedName()
 			methods[i] = types.NewFunc(token.NoPos, pkg, name, p.typ().(*types.Signature))
 		}
 
-		embeddeds := make([]*types.Named, p.int())
-		for i := range embeddeds {
-			embeddeds[i] = p.typ().(*types.Named)
-		}
 		*t = *types.NewInterface(methods, embeddeds)
 		return t
 
@@ -281,30 +291,31 @@ func (p *importer) typ() types.Type {
 		return t
 
 	case namedTag:
-		// import type object
+		// read type object
 		name := p.string()
 		pkg := p.pkg()
 		scope := pkg.Scope()
 		obj := scope.Lookup(name)
+
+		// if the object doesn't exist yet, create and insert it
 		if obj == nil {
-			new := types.NewTypeName(token.NoPos, pkg, name, nil)
-			types.NewNamed(new, nil, nil)
-			scope.Insert(new)
-			obj = new
+			obj = types.NewTypeName(token.NoPos, pkg, name, nil)
+			scope.Insert(obj)
 		}
+
+		// associate new named type with obj if it doesn't exist yet
+		t0 := types.NewNamed(obj.(*types.TypeName), nil, nil)
+
+		// but record the existing type, if any
 		t := obj.Type().(*types.Named)
 		p.record(t)
 
-		// import underlying type
-		u := p.typ()
-		if t.Underlying() == nil {
-			t.SetUnderlying(u)
-		}
+		// read underlying type
+		t0.SetUnderlying(p.typ())
 
 		// read associated methods
-		n := p.int()
-		for i := 0; i < n; i++ {
-			t.AddMethod(types.NewFunc(token.NoPos, pkg, p.string(), p.typ().(*types.Signature)))
+		for i, n := 0, p.int(); i < n; i++ {
+			t0.AddMethod(types.NewFunc(token.NoPos, pkg, p.string(), p.typ().(*types.Signature)))
 		}
 
 		return t
@@ -334,8 +345,11 @@ func (p *importer) field() *types.Var {
 			name = typ.Name()
 		case *types.Named:
 			obj := typ.Obj()
-			pkg = obj.Pkg() // TODO(gri) is this still correct?
 			name = obj.Name()
+			// correct the field package for anonymous fields
+			if exported(name) {
+				pkg = p.pkgList[0]
+			}
 		default:
 			panic("anonymous field expected")
 		}
@@ -347,22 +361,19 @@ func (p *importer) field() *types.Var {
 
 func (p *importer) qualifiedName() (*types.Package, string) {
 	name := p.string()
-	pkg := p.pkgList[1] // exported names assume current package
+	pkg := p.pkgList[0] // exported names assume current package
 	if !exported(name) {
 		pkg = p.pkg()
-		if pkg == nil {
-			panic(fmt.Sprintf("nil package for unexported qualified name %q", name))
-		}
 	}
 	return pkg, name
 }
 
 func (p *importer) signature() *types.Signature {
 	var recv *types.Var
-	if p.bool() {
+	if p.int() != 0 {
 		recv = p.param()
 	}
-	return types.NewSignature(nil, recv, p.tuple(), p.tuple(), p.bool())
+	return types.NewSignature(nil, recv, p.tuple(), p.tuple(), p.int() != 0)
 }
 
 func (p *importer) param() *types.Var {
@@ -379,10 +390,6 @@ func (p *importer) tuple() *types.Tuple {
 
 // ----------------------------------------------------------------------------
 // decoders
-
-func (p *importer) bool() bool {
-	return p.int64() != 0
-}
 
 func (p *importer) string() string {
 	return string(p.bytes())

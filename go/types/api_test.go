@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// TODO(gri) This file needs to be expanded significantly.
-
 package types_test
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -40,12 +39,126 @@ func mustTypecheck(t *testing.T, path, source string, info *Info) string {
 	return pkg.Name()
 }
 
-func TestCommaOkTypes(t *testing.T) {
+func TestValuesInfo(t *testing.T) {
 	var tests = []struct {
 		src  string
-		expr string // comma-ok expression string
-		typ  string // typestring of comma-ok value
+		expr string // constant expression
+		typ  string // constant type
+		val  string // constant value
 	}{
+		{`package a0; const _ = false`, `false`, `untyped bool`, `false`},
+		{`package a1; const _ = 0`, `0`, `untyped int`, `0`},
+		{`package a2; const _ = 'A'`, `'A'`, `untyped rune`, `65`},
+		{`package a3; const _ = 0.`, `0.`, `untyped float`, `0`},
+		{`package a4; const _ = 0i`, `0i`, `untyped complex`, `0`},
+		{`package a5; const _ = "foo"`, `"foo"`, `untyped string`, `"foo"`},
+
+		{`package b0; var _ = false`, `false`, `bool`, `false`},
+		{`package b1; var _ = 0`, `0`, `int`, `0`},
+		{`package b2; var _ = 'A'`, `'A'`, `rune`, `65`},
+		{`package b3; var _ = 0.`, `0.`, `float64`, `0`},
+		{`package b4; var _ = 0i`, `0i`, `complex128`, `0`},
+		{`package b5; var _ = "foo"`, `"foo"`, `string`, `"foo"`},
+
+		{`package c0a; var _ = bool(false)`, `false`, `bool`, `false`},
+		{`package c0b; var _ = bool(false)`, `bool(false)`, `bool`, `false`},
+		{`package c0c; type T bool; var _ = T(false)`, `T(false)`, `c0c.T`, `false`},
+
+		{`package c1a; var _ = int(0)`, `0`, `int`, `0`},
+		{`package c1b; var _ = int(0)`, `int(0)`, `int`, `0`},
+		{`package c1c; type T int; var _ = T(0)`, `T(0)`, `c1c.T`, `0`},
+
+		{`package c2a; var _ = rune('A')`, `'A'`, `rune`, `65`},
+		{`package c2b; var _ = rune('A')`, `rune('A')`, `rune`, `65`},
+		{`package c2c; type T rune; var _ = T('A')`, `T('A')`, `c2c.T`, `65`},
+
+		{`package c3a; var _ = float32(0.)`, `0.`, `float32`, `0`},
+		{`package c3b; var _ = float32(0.)`, `float32(0.)`, `float32`, `0`},
+		{`package c3c; type T float32; var _ = T(0.)`, `T(0.)`, `c3c.T`, `0`},
+
+		{`package c4a; var _ = complex64(0i)`, `0i`, `complex64`, `0`},
+		{`package c4b; var _ = complex64(0i)`, `complex64(0i)`, `complex64`, `0`},
+		{`package c4c; type T complex64; var _ = T(0i)`, `T(0i)`, `c4c.T`, `0`},
+
+		{`package c5a; var _ = string("foo")`, `"foo"`, `string`, `"foo"`},
+		{`package c5b; var _ = string("foo")`, `string("foo")`, `string`, `"foo"`},
+		{`package c5c; type T string; var _ = T("foo")`, `T("foo")`, `c5c.T`, `"foo"`},
+
+		{`package d0; var _ = []byte("foo")`, `"foo"`, `string`, `"foo"`},
+		{`package d1; var _ = []byte(string("foo"))`, `"foo"`, `string`, `"foo"`},
+		{`package d2; var _ = []byte(string("foo"))`, `string("foo")`, `string`, `"foo"`},
+		{`package d3; type T []byte; var _ = T("foo")`, `"foo"`, `string`, `"foo"`},
+
+		{`package e0; const _ = float32( 1e-200)`, `float32(1e-200)`, `float32`, `0`},
+		{`package e1; const _ = float32(-1e-200)`, `float32(-1e-200)`, `float32`, `0`},
+		{`package e2; const _ = float64( 1e-2000)`, `float64(1e-2000)`, `float64`, `0`},
+		{`package e3; const _ = float64(-1e-2000)`, `float64(-1e-2000)`, `float64`, `0`},
+		{`package e4; const _ = complex64( 1e-200)`, `complex64(1e-200)`, `complex64`, `0`},
+		{`package e5; const _ = complex64(-1e-200)`, `complex64(-1e-200)`, `complex64`, `0`},
+		{`package e6; const _ = complex128( 1e-2000)`, `complex128(1e-2000)`, `complex128`, `0`},
+		{`package e7; const _ = complex128(-1e-2000)`, `complex128(-1e-2000)`, `complex128`, `0`},
+
+		{`package f0 ; var _ float32 =  1e-200`, `1e-200`, `float32`, `0`},
+		{`package f1 ; var _ float32 = -1e-200`, `-1e-200`, `float32`, `0`},
+		{`package f2a; var _ float64 =  1e-2000`, `1e-2000`, `float64`, `0`},
+		{`package f3a; var _ float64 = -1e-2000`, `-1e-2000`, `float64`, `0`},
+		{`package f2b; var _         =  1e-2000`, `1e-2000`, `float64`, `0`},
+		{`package f3b; var _         = -1e-2000`, `-1e-2000`, `float64`, `0`},
+		{`package f4 ; var _ complex64  =  1e-200 `, `1e-200`, `complex64`, `0`},
+		{`package f5 ; var _ complex64  = -1e-200 `, `-1e-200`, `complex64`, `0`},
+		{`package f6a; var _ complex128 =  1e-2000i`, `1e-2000i`, `complex128`, `0`},
+		{`package f7a; var _ complex128 = -1e-2000i`, `-1e-2000i`, `complex128`, `0`},
+		{`package f6b; var _            =  1e-2000i`, `1e-2000i`, `complex128`, `0`},
+		{`package f7b; var _            = -1e-2000i`, `-1e-2000i`, `complex128`, `0`},
+	}
+
+	for _, test := range tests {
+		info := Info{
+			Types: make(map[ast.Expr]TypeAndValue),
+		}
+		name := mustTypecheck(t, "ValuesInfo", test.src, &info)
+
+		// look for constant expression
+		var expr ast.Expr
+		for e := range info.Types {
+			if ExprString(e) == test.expr {
+				expr = e
+				break
+			}
+		}
+		if expr == nil {
+			t.Errorf("package %s: no expression found for %s", name, test.expr)
+			continue
+		}
+		tv := info.Types[expr]
+
+		// check that type is correct
+		if got := tv.Type.String(); got != test.typ {
+			t.Errorf("package %s: got type %s; want %s", name, got, test.typ)
+			continue
+		}
+
+		// check that value is correct
+		if got := tv.Value.String(); got != test.val {
+			t.Errorf("package %s: got value %s; want %s", name, got, test.val)
+		}
+	}
+}
+
+func TestTypesInfo(t *testing.T) {
+	var tests = []struct {
+		src  string
+		expr string // expression
+		typ  string // value type
+	}{
+		// single-valued expressions of untyped constants
+		{`package b0; var x interface{} = false`, `false`, `bool`},
+		{`package b1; var x interface{} = 0`, `0`, `int`},
+		{`package b2; var x interface{} = 0.`, `0.`, `float64`},
+		{`package b3; var x interface{} = 0i`, `0i`, `complex128`},
+		{`package b4; var x interface{} = "foo"`, `"foo"`, `string`},
+
+		// comma-ok expressions
 		{`package p0; var x interface{}; var _, _ = x.(int)`,
 			`x.(int)`,
 			`(int, bool)`,
@@ -62,6 +175,8 @@ func TestCommaOkTypes(t *testing.T) {
 			`<-c`,
 			`(string, bool)`,
 		},
+
+		// issue 6796
 		{`package issue6796_a; var x interface{}; var _, _ = (x.(int))`,
 			`x.(int)`,
 			`(int, bool)`,
@@ -82,17 +197,43 @@ func TestCommaOkTypes(t *testing.T) {
 			`(<-c)`,
 			`(string, bool)`,
 		},
+
+		// issue 7060
+		{`package issue7060_a; var ( m map[int]string; x, ok = m[0] )`,
+			`m[0]`,
+			`(string, bool)`,
+		},
+		{`package issue7060_b; var ( m map[int]string; x, ok interface{} = m[0] )`,
+			`m[0]`,
+			`(string, bool)`,
+		},
+		{`package issue7060_c; func f(x interface{}, ok bool, m map[int]string) { x, ok = m[0] }`,
+			`m[0]`,
+			`(string, bool)`,
+		},
+		{`package issue7060_d; var ( ch chan string; x, ok = <-ch )`,
+			`<-ch`,
+			`(string, bool)`,
+		},
+		{`package issue7060_e; var ( ch chan string; x, ok interface{} = <-ch )`,
+			`<-ch`,
+			`(string, bool)`,
+		},
+		{`package issue7060_f; func f(x interface{}, ok bool, ch chan string) { x, ok = <-ch }`,
+			`<-ch`,
+			`(string, bool)`,
+		},
 	}
 
 	for _, test := range tests {
-		info := Info{Types: make(map[ast.Expr]Type)}
-		name := mustTypecheck(t, "CommaOkTypes", test.src, &info)
+		info := Info{Types: make(map[ast.Expr]TypeAndValue)}
+		name := mustTypecheck(t, "TypesInfo", test.src, &info)
 
-		// look for comma-ok expression type
+		// look for expression type
 		var typ Type
-		for e, t := range info.Types {
+		for e, tv := range info.Types {
 			if ExprString(e) == test.expr {
-				typ = t
+				typ = tv.Type
 				break
 			}
 		}
@@ -229,7 +370,7 @@ func TestScopesInfo(t *testing.T) {
 	}
 }
 
-func TestInitOrder(t *testing.T) {
+func TestInitOrderInfo(t *testing.T) {
 	var tests = []struct {
 		src   string
 		inits []string
@@ -264,11 +405,29 @@ func TestInitOrder(t *testing.T) {
 		{`package p9; type T struct{}; func (T) m() int { _ = y; return 0 }; var x, y = T.m, 1`, []string{
 			"y = 1", "x = T.m",
 		}},
+		{`package p10; var (d = c + b; a = 0; b = 0; c = 0)`, []string{
+			"b = 0", "c = 0", "d = c + b", "a = 0",
+		}},
+		// test case for issue 7131
+		{`package main
+
+		var counter int
+		func next() int { counter++; return counter }
+
+		var _ = makeOrder()
+		func makeOrder() []int { return []int{f, b, d, e, c, a} }
+
+		var a       = next()
+		var b, c    = next(), next()
+		var d, e, f = next(), next(), next()
+		`, []string{
+			"a = next()", "b = next()", "c = next()", "d = next()", "e = next()", "f = next()", "_ = makeOrder()",
+		}},
 	}
 
 	for _, test := range tests {
 		info := Info{}
-		name := mustTypecheck(t, "InitOrder", test.src, &info)
+		name := mustTypecheck(t, "InitOrderInfo", test.src, &info)
 
 		// number of initializers must match
 		if len(info.InitOrder) != len(test.inits) {
@@ -283,6 +442,197 @@ func TestInitOrder(t *testing.T) {
 				t.Errorf("package %s, init %d: got %s; want %s", name, i, got, want)
 				continue
 			}
+		}
+	}
+}
+
+func TestFiles(t *testing.T) {
+	var sources = []string{
+		"package p; type T struct{}; func (T) m1() {}",
+		"package p; func (T) m2() {}; var _ interface{ m1(); m2() } = T{}",
+		"package p; func (T) m3() {}; var _ interface{ m1(); m2(); m3() } = T{}",
+	}
+
+	var conf Config
+	fset := token.NewFileSet()
+	pkg := NewPackage("p", "p")
+	check := NewChecker(&conf, fset, pkg, nil)
+
+	for i, src := range sources {
+		filename := fmt.Sprintf("sources%d", i)
+		f, err := parser.ParseFile(fset, filename, src, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := check.Files([]*ast.File{f}); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func TestSelection(t *testing.T) {
+	selections := make(map[*ast.SelectorExpr]*Selection)
+
+	fset := token.NewFileSet()
+	conf := Config{
+		Packages: make(map[string]*Package),
+		Import: func(imports map[string]*Package, path string) (*Package, error) {
+			return imports[path], nil
+		},
+	}
+	makePkg := func(path, src string) {
+		f, err := parser.ParseFile(fset, path+".go", src, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pkg, err := conf.Check(path, fset, []*ast.File{f}, &Info{Selections: selections})
+		if err != nil {
+			t.Fatal(err)
+		}
+		conf.Packages[path] = pkg
+	}
+
+	libSrc := `
+package lib
+type T float64
+const C T = 3
+var V T
+func F() {}
+func (T) M() {}
+`
+	mainSrc := `
+package main
+import "lib"
+
+type A struct {
+	*B
+	C
+}
+
+type B struct {
+	b int
+}
+
+func (B) f(int)
+
+type C struct {
+	c int
+}
+
+func (C) g()
+func (*C) h()
+
+func main() {
+	// qualified identifiers
+	var _ lib.T
+        _ = lib.C
+        _ = lib.F
+        _ = lib.V
+	_ = lib.T.M
+
+	// fields
+	_ = A{}.B
+	_ = new(A).B
+
+	_ = A{}.C
+	_ = new(A).C
+
+	_ = A{}.b
+	_ = new(A).b
+
+	_ = A{}.c
+	_ = new(A).c
+
+	// methods
+        _ = A{}.f
+        _ = new(A).f
+        _ = A{}.g
+        _ = new(A).g
+        _ = new(A).h
+
+        _ = B{}.f
+        _ = new(B).f
+
+        _ = C{}.g
+        _ = new(C).g
+        _ = new(C).h
+
+	// method expressions
+        _ = A.f
+        _ = (*A).f
+        _ = B.f
+        _ = (*B).f
+}`
+
+	// TODO(adonovan): assert all map entries are used at least once.
+	wantOut := map[string][2]string{
+		"lib.T":   {"qualified ident type lib.T float64", ".[]"},
+		"lib.C":   {"qualified ident const lib.C lib.T", ".[]"},
+		"lib.F":   {"qualified ident func lib.F()", ".[]"},
+		"lib.V":   {"qualified ident var lib.V lib.T", ".[]"},
+		"lib.T.M": {"method expr (lib.T) M(lib.T)", ".[0]"},
+
+		"A{}.B":    {"field (main.A) B *main.B", ".[0]"},
+		"new(A).B": {"field (*main.A) B *main.B", "->[0]"},
+		"A{}.C":    {"field (main.A) C main.C", ".[1]"},
+		"new(A).C": {"field (*main.A) C main.C", "->[1]"},
+		"A{}.b":    {"field (main.A) b int", "->[0 0]"},
+		"new(A).b": {"field (*main.A) b int", "->[0 0]"},
+		"A{}.c":    {"field (main.A) c int", ".[1 0]"},
+		"new(A).c": {"field (*main.A) c int", "->[1 0]"},
+
+		"A{}.f":    {"method (main.A) f(int)", "->[0 0]"},
+		"new(A).f": {"method (*main.A) f(int)", "->[0 0]"},
+		"A{}.g":    {"method (main.A) g()", ".[1 0]"},
+		"new(A).g": {"method (*main.A) g()", "->[1 0]"},
+		"new(A).h": {"method (*main.A) h()", "->[1 1]"},
+		"B{}.f":    {"method (main.B) f(int)", ".[0]"},
+		"new(B).f": {"method (*main.B) f(int)", "->[0]"},
+		"C{}.g":    {"method (main.C) g()", ".[0]"},
+		"new(C).g": {"method (*main.C) g()", "->[0]"},
+		"new(C).h": {"method (*main.C) h()", "->[1]"},
+
+		"A.f":    {"method expr (main.A) f(main.A, int)", "->[0 0]"},
+		"(*A).f": {"method expr (*main.A) f(*main.A, int)", "->[0 0]"},
+		"B.f":    {"method expr (main.B) f(main.B, int)", ".[0]"},
+		"(*B).f": {"method expr (*main.B) f(*main.B, int)", "->[0]"},
+	}
+
+	makePkg("lib", libSrc)
+	makePkg("main", mainSrc)
+
+	for e, sel := range selections {
+		sel.String() // assertion: must not panic
+
+		start := fset.Position(e.Pos()).Offset
+		end := fset.Position(e.End()).Offset
+		syntax := mainSrc[start:end] // (all SelectorExprs are in main, not lib)
+
+		direct := "."
+		if sel.Indirect() {
+			direct = "->"
+		}
+		got := [2]string{
+			sel.String(),
+			fmt.Sprintf("%s%v", direct, sel.Index()),
+		}
+		want := wantOut[syntax]
+		if want != got {
+			t.Errorf("%s: got %q; want %q", syntax, got, want)
+		}
+
+		// We must explicitly assert properties of the
+		// Signature's receiver since it doesn't participate
+		// in Identical() or String().
+		sig, _ := sel.Type().(*Signature)
+		if sel.Kind() == MethodVal {
+			got := sig.Recv().Type()
+			want := sel.Recv()
+			if !Identical(got, want) {
+				t.Errorf("%s: Recv() = %s, want %s", got, want)
+			}
+		} else if sig != nil && sig.Recv() != nil {
+			t.Error("%s: signature has receiver %s", sig, sig.Recv().Type())
 		}
 	}
 }

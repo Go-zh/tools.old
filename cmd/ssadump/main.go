@@ -9,14 +9,14 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
-	"log"
 	"os"
 	"runtime"
 	"runtime/pprof"
 
-	"code.google.com/p/go.tools/importer"
-	"code.google.com/p/go.tools/ssa"
-	"code.google.com/p/go.tools/ssa/interp"
+	"code.google.com/p/go.tools/go/loader"
+	"code.google.com/p/go.tools/go/ssa"
+	"code.google.com/p/go.tools/go/ssa/interp"
+	"code.google.com/p/go.tools/go/types"
 )
 
 var buildFlag = flag.String("build", "", `Options controlling the SSA builder.
@@ -31,6 +31,8 @@ L	build distinct packages seria[L]ly instead of in parallel.
 N	build [N]aive SSA form: don't replace local loads/stores with registers.
 `)
 
+var testFlag = flag.Bool("test", false, "Loads test code (*_test.go) for imported packages.")
+
 var runFlag = flag.Bool("run", false, "Invokes the SSA interpreter on the program.")
 
 var interpFlag = flag.String("interp", "", `Options controlling the SSA test interpreter.
@@ -44,14 +46,15 @@ Usage: ssadump [<flag> ...] <args> ...
 Use -help flag to display options.
 
 Examples:
-% ssadump -build=FPG hello.go         # quickly dump SSA form of a single package
-% ssadump -run -interp=T hello.go     # interpret a program, with tracing
-% ssadump -run unicode -- -test.v     # interpret the unicode package's tests, verbosely
-` + importer.InitialPackagesUsage +
+% ssadump -build=FPG hello.go            # quickly dump SSA form of a single package
+% ssadump -run -interp=T hello.go        # interpret a program, with tracing
+% ssadump -run -test unicode -- -test.v  # interpret the unicode package's tests, verbosely
+` + loader.FromArgsUsage +
 	`
-When -run is specified, ssadump will find the first package that
-defines a main function and run it in the interpreter.
-If none is found, the tests of each package will be run instead.
+When -run is specified, ssadump will run the program.
+The entry point depends on the -test flag:
+if clear, it runs the first package named main.
+if set, it runs the tests of each package.
 `
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
@@ -69,17 +72,37 @@ func init() {
 }
 
 func main() {
+	if err := doMain(); err != nil {
+		fmt.Fprintf(os.Stderr, "ssadump: %s.\n", err)
+		os.Exit(1)
+	}
+}
+
+func doMain() error {
 	flag.Parse()
 	args := flag.Args()
 
-	impctx := importer.Config{Build: &build.Default}
+	conf := loader.Config{
+		Build:         &build.Default,
+		SourceImports: true,
+	}
+	// TODO(adonovan): make go/types choose its default Sizes from
+	// build.Default or a specified *build.Context.
+	var wordSize int64 = 8
+	switch conf.Build.GOARCH {
+	case "386", "arm":
+		wordSize = 4
+	}
+	conf.TypeChecker.Sizes = &types.StdSizes{
+		MaxAlign: 8,
+		WordSize: wordSize,
+	}
 
-	var debugMode bool
 	var mode ssa.BuilderMode
 	for _, c := range *buildFlag {
 		switch c {
 		case 'D':
-			debugMode = true
+			mode |= ssa.GlobalDebug
 		case 'P':
 			mode |= ssa.LogPackages | ssa.BuildSerially
 		case 'F':
@@ -91,11 +114,11 @@ func main() {
 		case 'N':
 			mode |= ssa.NaiveForm
 		case 'G':
-			impctx.Build = nil
+			conf.SourceImports = false
 		case 'L':
 			mode |= ssa.BuildSerially
 		default:
-			log.Fatalf("Unknown -build option: '%c'.", c)
+			return fmt.Errorf("unknown -build option: '%c'", c)
 		}
 	}
 
@@ -107,7 +130,7 @@ func main() {
 		case 'R':
 			interpMode |= interp.DisableRecover
 		default:
-			log.Fatalf("Unknown -interp option: '%c'.", c)
+			return fmt.Errorf("unknown -interp option: '%c'", c)
 		}
 	}
 
@@ -120,59 +143,68 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
 
-	// Load, parse and type-check the program.
-	imp := importer.New(&impctx)
-	infos, args, err := imp.LoadInitialPackages(args)
+	// Use the initial packages from the command line.
+	args, err := conf.FromArgs(args, *testFlag)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// The interpreter needs the runtime package.
 	if *runFlag {
-		if _, err := imp.LoadPackage("runtime"); err != nil {
-			log.Fatalf("LoadPackage(runtime) failed: %s", err)
-		}
+		conf.Import("runtime")
+	}
+
+	// Load, parse and type-check the whole program.
+	iprog, err := conf.Load()
+	if err != nil {
+		return err
 	}
 
 	// Create and build SSA-form program representation.
-	prog := ssa.NewProgram(imp.Fset, mode)
-	if err := prog.CreatePackages(imp); err != nil {
-		log.Fatal(err)
-	}
-
-	if debugMode {
-		for _, pkg := range prog.AllPackages() {
-			pkg.SetDebugMode(true)
-		}
-	}
+	prog := ssa.Create(iprog, mode)
 	prog.BuildAll()
 
 	// Run the interpreter.
 	if *runFlag {
-		// If some package defines main, run that.
-		// Otherwise run all package's tests.
 		var main *ssa.Package
-		var pkgs []*ssa.Package
-		for _, info := range infos {
-			pkg := prog.Package(info.Pkg)
-			if pkg.Func("main") != nil {
-				main = pkg
-				break
+		pkgs := prog.AllPackages()
+		if *testFlag {
+			// If -test, run all packages' tests.
+			if len(pkgs) > 0 {
+				main = prog.CreateTestMainPackage(pkgs...)
 			}
-			pkgs = append(pkgs, pkg)
+			if main == nil {
+				return fmt.Errorf("no tests")
+			}
+		} else {
+			// Otherwise, run main.main.
+			for _, pkg := range pkgs {
+				if pkg.Object.Name() == "main" {
+					main = pkg
+					if main.Func("main") == nil {
+						return fmt.Errorf("no func main() in main package")
+					}
+					break
+				}
+			}
+			if main == nil {
+				return fmt.Errorf("no main package")
+			}
 		}
-		if main == nil && pkgs != nil {
-			main = prog.CreateTestMainPackage(pkgs...)
+
+		if runtime.GOARCH != build.Default.GOARCH {
+			return fmt.Errorf("cross-interpretation is not yet supported (target has GOARCH %s, interpreter has %s)",
+				build.Default.GOARCH, runtime.GOARCH)
 		}
-		if main == nil {
-			log.Fatal("No main package and no tests")
-		}
-		interp.Interpret(main, interpMode, main.Object.Path(), args)
+
+		interp.Interpret(main, interpMode, conf.TypeChecker.Sizes, main.Object.Path(), args)
 	}
+	return nil
 }

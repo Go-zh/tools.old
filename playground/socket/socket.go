@@ -22,6 +22,8 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,8 +37,9 @@ import (
 	"code.google.com/p/go.net/websocket"
 )
 
-// Handler implements a WebSocket handler for a client connection.
-var Handler = websocket.Handler(socketHandler)
+// RunScripts specifies whether the socket handler should execute shell scripts
+// (snippets that start with a shebang).
+var RunScripts = true
 
 // Environ provides an environment when a binary, such as the go tool, is
 // invoked.
@@ -63,6 +66,30 @@ type Message struct {
 // Options specify additional message options.
 type Options struct {
 	Race bool // use -race flag when building code (for "run" only)
+}
+
+// NewHandler returns a websocket server which checks the origin of requests.
+func NewHandler(origin *url.URL) websocket.Server {
+	return websocket.Server{
+		Config:    websocket.Config{Origin: origin},
+		Handshake: handshake,
+		Handler:   websocket.Handler(socketHandler),
+	}
+}
+
+// handshake checks the origin of a request during the websocket handshake.
+func handshake(c *websocket.Config, req *http.Request) error {
+	o, err := websocket.Origin(c, req)
+	if err != nil {
+		log.Println("bad websocket origin:", err)
+		return websocket.ErrBadWebSocketOrigin
+	}
+	ok := c.Origin.Scheme == o.Scheme && c.Origin.Host == o.Host
+	if !ok {
+		log.Println("bad websocket origin:", o)
+		return websocket.ErrBadWebSocketOrigin
+	}
+	return nil
 }
 
 // socketHandler handles the websocket connection for a given present session.
@@ -141,7 +168,7 @@ func startProcess(id, body string, out chan<- *Message, opt *Options) *process {
 		done: make(chan struct{}),
 	}
 	var err error
-	if path, args := shebang(body); path != "" {
+	if path, args := shebang(body); RunScripts && path != "" {
 		err = p.startProcess(path, args, body)
 	} else {
 		err = p.start(body, opt)
@@ -165,6 +192,7 @@ func (p *process) Kill() {
 
 // shebang looks for a shebang ('#!') at the beginning of the passed string.
 // If found, it returns the path and args after the shebang.
+// args includes the command as args[0].
 func shebang(body string) (path string, args []string) {
 	body = strings.TrimSpace(body)
 	if !strings.HasPrefix(body, "#!") {
@@ -174,7 +202,7 @@ func shebang(body string) (path string, args []string) {
 		body = body[:i]
 	}
 	fs := strings.Fields(body[2:])
-	return fs[0], fs[1:]
+	return fs[0], fs
 }
 
 // startProcess starts a given program given its path and passing the given body

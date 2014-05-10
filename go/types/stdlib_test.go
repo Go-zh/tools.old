@@ -8,7 +8,6 @@
 package types_test
 
 import (
-	"flag"
 	"fmt"
 	"go/ast"
 	"go/build"
@@ -27,8 +26,6 @@ import (
 	. "code.google.com/p/go.tools/go/types"
 )
 
-var verbose = flag.Bool("types.v", false, "verbose mode")
-
 var (
 	pkgCount int // number of packages processed
 	start    = time.Now()
@@ -36,7 +33,7 @@ var (
 
 func TestStdlib(t *testing.T) {
 	walkDirs(t, filepath.Join(runtime.GOROOT(), "src/pkg"))
-	if *verbose {
+	if testing.Verbose() {
 		fmt.Println(pkgCount, "packages typechecked in", time.Since(start))
 	}
 }
@@ -120,16 +117,17 @@ func testTestDir(t *testing.T, path string, ignore ...string) {
 
 func TestStdTest(t *testing.T) {
 	testTestDir(t, filepath.Join(runtime.GOROOT(), "test"),
-		"cmplxdivide.go",          // also needs file cmplxdivide1.go - ignore
-		"mapnan.go", "sigchld.go", // don't work on Windows; testTestDir should consult build tags
+		"cmplxdivide.go", // also needs file cmplxdivide1.go - ignore
+		"sigchld.go",     // don't work on Windows; testTestDir should consult build tags
 	)
 }
 
 func TestStdFixed(t *testing.T) {
 	testTestDir(t, filepath.Join(runtime.GOROOT(), "test", "fixedbugs"),
 		"bug248.go", "bug302.go", "bug369.go", // complex test instructions - ignore
-		"bug459.go",    // likely incorrect test - see issue 6793 (pending spec clarification)
-		"issue3924.go", // likely incorrect test - see issue 6671 (pending spec clarification)
+		"bug459.go",    // possibly incorrect test - see issue 6703 (pending spec clarification)
+		"issue3924.go", // possibly incorrect test - see issue 6671 (pending spec clarification)
+		"issue6889.go", // gc-specific test
 	)
 }
 
@@ -162,7 +160,7 @@ func typecheck(t *testing.T, path string, filenames []string) {
 			return
 		}
 
-		if *verbose {
+		if testing.Verbose() {
 			if len(files) == 0 {
 				fmt.Println("package", file.Name.Name)
 			}

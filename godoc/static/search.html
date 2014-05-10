@@ -3,7 +3,6 @@
 	Use of this source code is governed by a BSD-style
 	license that can be found in the LICENSE file.
 -->
-{{$query_url := urlquery .Query}}
 {{with .Alert}}
 	<p>
 	<span class="alert" style="font-size:120%">{{html .}}</span>
@@ -20,6 +19,7 @@
 	{{end}}
 	</p>
 {{end}}
+<<<<<<< local
 {{with .Pak}}
 <!--
 	<h2 id="Packages">Package {{html $.Query}}</h2>
@@ -148,3 +148,5 @@
 	</table>
 	</p>
 {{end}}
+=======
+>>>>>>> other

@@ -123,7 +123,7 @@ func PrintfTests() {
 	fmt.Printf("%t", stringerarrayv)           // ERROR "arg stringerarrayv for printf verb %t of wrong type"
 	fmt.Printf("%t", notstringerarrayv)        // ERROR "arg notstringerarrayv for printf verb %t of wrong type"
 	fmt.Printf("%q", notstringerarrayv)        // ERROR "arg notstringerarrayv for printf verb %q of wrong type"
-	fmt.Printf("%d", Formatter(true))          // ERROR "arg Formatter\(true\) for printf verb %d of wrong type"
+	fmt.Printf("%d", Formatter(true))          // correct (the type is responsible for formatting)
 	fmt.Printf("%s", nonemptyinterface)        // correct (the dynamic type of nonemptyinterface may be a stringer)
 	fmt.Printf("%.*s %d %g", 3, "hi", 23, 'x') // ERROR "arg 'x' for printf verb %g of wrong type"
 	fmt.Println()                              // not an error
@@ -134,7 +134,7 @@ func PrintfTests() {
 	fmt.Printf("%08s", "woo")                  // correct
 	fmt.Printf("% 8s", "woo")                  // correct
 	fmt.Printf("%.*d", 3, 3)                   // correct
-	fmt.Printf("%.*d", 3, 3, 3)                // ERROR "wrong number of args for format in Printf call"
+	fmt.Printf("%.*d", 3, 3, 3, 3)             // ERROR "wrong number of args for format in Printf call.*4 args"
 	fmt.Printf("%.*d", "hi", 3)                // ERROR "arg .hi. for \* in printf format not of type int"
 	fmt.Printf("%.*d", i, 3)                   // correct
 	fmt.Printf("%.*d", s, 3)                   // ERROR "arg s for \* in printf format not of type int"
@@ -146,7 +146,8 @@ func PrintfTests() {
 	Printf("hi")                               // ok
 	const format = "%s %s\n"
 	Printf(format, "hi", "there")
-	Printf(format, "hi") // ERROR "missing argument for Printf verb %s: need 2, have 1"
+	Printf(format, "hi")              // ERROR "missing argument for Printf..%s..: format reads arg 2, have only 1"
+	Printf("%s %d %.3v %q", "str", 4) // ERROR "missing argument for Printf..%.3v..: format reads arg 3, have only 2"
 	f := new(stringer)
 	f.Warn(0, "%s", "hello", 3)  // ERROR "possible formatting directive in Warn call"
 	f.Warnf(0, "%s", "hello", 3) // ERROR "wrong number of args for format in Warnf call"
@@ -169,8 +170,8 @@ func PrintfTests() {
 	// Bad argument reorderings.
 	Printf("%[xd", 3)                    // ERROR "illegal syntax for printf argument index"
 	Printf("%[x]d", 3)                   // ERROR "illegal syntax for printf argument index"
-	Printf("%[3]*s", "hi", 2)            // ERROR "missing argument for Printf indirect \*: need 3, have 2"
-	fmt.Sprintf("%[3]d", 2)              // ERROR "missing argument for Sprintf verb %d: need 3, have 1"
+	Printf("%[3]*s", "hi", 2)            // ERROR "missing argument for Printf.* reads arg 3, have only 2"
+	fmt.Sprintf("%[3]d", 2)              // ERROR "missing argument for Sprintf.* reads arg 3, have only 1"
 	Printf("%[2]*.[1]*[3]d", 2, "hi", 4) // ERROR "arg .hi. for \* in printf format not of type int"
 	// Something that satisfies the error interface.
 	var e error
@@ -285,6 +286,7 @@ func (s recursiveStringer) String() string {
 	fmt.Sprintf("%#v", s)
 	fmt.Sprintf("%v", s)   // ERROR "arg s for printf causes recursive call to String method"
 	fmt.Sprintf("%v", &s)  // ERROR "arg &s for printf causes recursive call to String method"
+	fmt.Sprintf("%T", s)   // ok; does not recursively call String
 	return fmt.Sprintln(s) // ERROR "arg s for print causes recursive call to String method"
 }
 
@@ -323,3 +325,8 @@ type RecursiveStruct2 struct {
 }
 
 var recursiveStruct1V = &RecursiveStruct1{}
+
+// Fix for issue 7149: Missing return type on String method caused fault.
+func (int) String() {
+	return ""
+}

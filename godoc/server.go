@@ -6,12 +6,15 @@ package godoc
 
 import (
 	"bytes"
+	"encoding/json"
+	"expvar"
 	"fmt"
 	"go/ast"
 	"go/build"
 	"go/doc"
 	"go/token"
 	htmlpkg "html"
+	htmltemplate "html/template"
 	"io"
 	"io/ioutil"
 	"log"
@@ -24,6 +27,7 @@ import (
 	"text/template"
 	"time"
 
+	"code.google.com/p/go-zh.tools/godoc/analysis"
 	"code.google.com/p/go-zh.tools/godoc/util"
 	"code.google.com/p/go-zh.tools/godoc/vfs"
 )
@@ -96,7 +100,7 @@ func (h *handlerServer) GetPageInfo(abspath, relpath string, mode PageInfoMode) 
 	if len(pkgfiles) > 0 {
 		// build package AST
 		fset := token.NewFileSet()
-		files, err := h.c.parseFiles(fset, abspath, pkgfiles)
+		files, err := h.c.parseFiles(fset, relpath, abspath, pkgfiles)
 		if err != nil {
 			info.Err = err
 			return info
@@ -117,17 +121,23 @@ func (h *handlerServer) GetPageInfo(abspath, relpath string, mode PageInfoMode) 
 				m |= doc.AllMethods
 			}
 			info.PDoc = doc.New(pkg, pathpkg.Clean(relpath), m) // no trailing '/' in importpath
-			if mode&NoFactoryFuncs != 0 {
+			if mode&NoTypeAssoc != 0 {
 				for _, t := range info.PDoc.Types {
+					info.PDoc.Consts = append(info.PDoc.Consts, t.Consts...)
+					info.PDoc.Vars = append(info.PDoc.Vars, t.Vars...)
 					info.PDoc.Funcs = append(info.PDoc.Funcs, t.Funcs...)
+					t.Consts = nil
+					t.Vars = nil
 					t.Funcs = nil
 				}
+				// for now we cannot easily sort consts and vars since
+				// go/doc.Value doesn't export the order information
 				sort.Sort(funcsByName(info.PDoc.Funcs))
 			}
 
 			// collect examples
 			testfiles := append(pkginfo.TestGoFiles, pkginfo.XTestGoFiles...)
-			files, err = h.c.parseFiles(fset, abspath, testfiles)
+			files, err = h.c.parseFiles(fset, relpath, abspath, testfiles)
 			if err != nil {
 				log.Println("parsing examples:", err)
 			}
@@ -155,7 +165,7 @@ func (h *handlerServer) GetPageInfo(abspath, relpath string, mode PageInfoMode) 
 			if mode&NoFiltering == 0 {
 				packageExports(fset, pkg)
 			}
-			info.PAst = ast.MergePackageFiles(pkg, 0)
+			info.PAst = files
 		}
 		info.IsMain = pkgname == "main"
 	}
@@ -200,7 +210,7 @@ func (h *handlerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	abspath := pathpkg.Join(h.fsRoot, relpath)
 	mode := h.p.GetPageInfoMode(r)
 	if relpath == builtinPkgPath {
-		mode = NoFiltering | NoFactoryFuncs
+		mode = NoFiltering | NoTypeAssoc
 	}
 	info := h.GetPageInfo(abspath, relpath, mode)
 	if info.Err != nil {
@@ -217,7 +227,10 @@ func (h *handlerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var tabtitle, title, subtitle string
 	switch {
 	case info.PAst != nil:
-		tabtitle = info.PAst.Name.Name
+		for _, ast := range info.PAst {
+			tabtitle = ast.Name.Name
+			break
+		}
 	case info.PDoc != nil:
 		tabtitle = info.PDoc.Name
 	default:
@@ -246,6 +259,18 @@ func (h *handlerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		tabtitle = "Commands"
 	}
 
+	// Emit JSON array for type information.
+	// TODO(adonovan): issue a "pending..." message if results not ready.
+	var callGraph []*analysis.PCGNodeJSON
+	var typeInfos []*analysis.TypeInfoJSON
+	callGraph, info.CallGraphIndex, typeInfos = h.c.Analysis.PackageInfo(relpath)
+	info.CallGraph = htmltemplate.JS(marshalJSON(callGraph))
+	info.AnalysisData = htmltemplate.JS(marshalJSON(typeInfos))
+	info.TypeInfoIndex = make(map[string]int)
+	for i, ti := range typeInfos {
+		info.TypeInfoIndex[ti.Name] = i
+	}
+
 	h.p.ServePage(w, Page{
 		Title:    title,
 		Tabtitle: tabtitle,
@@ -257,12 +282,12 @@ func (h *handlerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type PageInfoMode uint
 
 const (
-	NoFiltering    PageInfoMode = 1 << iota // do not filter exports
-	AllMethods                              // show all embedded methods
-	ShowSource                              // show source code, do not extract documentation
-	NoHTML                                  // show result in textual form, do not generate HTML
-	FlatDir                                 // show directory in a flat (non-indented) manner
-	NoFactoryFuncs                          // don't associate factory functions with their result types
+	NoFiltering PageInfoMode = 1 << iota // do not filter exports
+	AllMethods                           // show all embedded methods
+	ShowSource                           // show source code, do not extract documentation
+	NoHTML                               // show result in textual form, do not generate HTML
+	FlatDir                              // show directory in a flat (non-indented) manner
+	NoTypeAssoc                          // don't associate consts, vars, and factory functions with types
 )
 
 // modeNames defines names for each PageInfoMode flag.
@@ -392,6 +417,45 @@ func applyTemplate(t *template.Template, name string, data interface{}) []byte {
 	return buf.Bytes()
 }
 
+type writerCapturesErr struct {
+	w   io.Writer
+	err error
+}
+
+func (w *writerCapturesErr) Write(p []byte) (int, error) {
+	n, err := w.w.Write(p)
+	if err != nil {
+		w.err = err
+	}
+	return n, err
+}
+
+var httpErrors *expvar.Map
+
+func init() {
+	httpErrors = expvar.NewMap("httpWriteErrors").Init()
+}
+
+// applyTemplateToResponseWriter uses an http.ResponseWriter as the io.Writer
+// for the call to template.Execute.  It uses an io.Writer wrapper to capture
+// errors from the underlying http.ResponseWriter.  If an error is found, an
+// expvar will be incremented.  Other template errors will be logged.  This is
+// done to keep from polluting log files with error messages due to networking
+// issues, such as client disconnects and http HEAD protocol violations.
+func applyTemplateToResponseWriter(rw http.ResponseWriter, t *template.Template, data interface{}) {
+	w := &writerCapturesErr{w: rw}
+	err := t.Execute(w, data)
+	// There are some cases where template.Execute does not return an error when
+	// rw returns an error, and some where it does.  So check w.err first.
+	if w.err != nil {
+		// For http errors, increment an expvar.
+		httpErrors.Add(w.err.Error(), 1)
+	} else if err != nil {
+		// Log template errors.
+		log.Printf("%s.Execute: %s", t.Name(), err)
+	}
+}
+
 func redirect(w http.ResponseWriter, r *http.Request) (redirected bool) {
 	canonical := pathpkg.Clean(r.URL.Path)
 	if !strings.HasSuffix(canonical, "/") {
@@ -431,10 +495,32 @@ func (p *Presentation) serveTextFile(w http.ResponseWriter, r *http.Request, abs
 		return
 	}
 
+	h := r.FormValue("h")
+	s := RangeSelection(r.FormValue("s"))
+
 	var buf bytes.Buffer
-	buf.WriteString("<pre>")
-	FormatText(&buf, src, 1, pathpkg.Ext(abspath) == ".go", r.FormValue("h"), RangeSelection(r.FormValue("s")))
-	buf.WriteString("</pre>")
+	if pathpkg.Ext(abspath) == ".go" {
+		// Find markup links for this file (e.g. "/src/pkg/fmt/print.go").
+		data, links := p.Corpus.Analysis.FileInfo(abspath)
+		buf.WriteString("<script type='text/javascript'>document.ANALYSIS_DATA = ")
+		buf.Write(marshalJSON(data))
+		buf.WriteString(";</script>\n")
+
+		// TODO(adonovan): indicate whether analysis is
+		// disabled, pending, completed or failed.
+		// For now, display help link only if 'completed'.
+		if links != nil {
+			buf.WriteString("<a href='/lib/godoc/analysis/help.html'>Static analysis features</a><br/>")
+		}
+
+		buf.WriteString("<pre>")
+		formatGoSource(&buf, src, links, h, s)
+		buf.WriteString("</pre>")
+	} else {
+		buf.WriteString("<pre>")
+		FormatText(&buf, src, 1, false, h, s)
+		buf.WriteString("</pre>")
+	}
 	fmt.Fprintf(&buf, `<p><a href="/%s?m=text">View as plain text</a></p>`, htmlpkg.EscapeString(relpath))
 
 	p.ServePage(w, Page{
@@ -442,6 +528,48 @@ func (p *Presentation) serveTextFile(w http.ResponseWriter, r *http.Request, abs
 		Tabtitle: relpath,
 		Body:     buf.Bytes(),
 	})
+}
+
+// formatGoSource HTML-escapes Go source text and writes it to w,
+// decorating it with the specified analysis links.
+//
+func formatGoSource(buf *bytes.Buffer, text []byte, links []analysis.Link, pattern string, selection Selection) {
+	// Emit to a temp buffer so that we can add line anchors at the end.
+	saved, buf := buf, new(bytes.Buffer)
+
+	var i int
+	var link analysis.Link // shared state of the two funcs below
+	segmentIter := func() (seg Segment) {
+		if i < len(links) {
+			link = links[i]
+			i++
+			seg = Segment{link.Start(), link.End()}
+		}
+		return
+	}
+	linkWriter := func(w io.Writer, offs int, start bool) {
+		link.Write(w, offs, start)
+	}
+
+	comments := tokenSelection(text, token.COMMENT)
+	var highlights Selection
+	if pattern != "" {
+		highlights = regexpSelection(text, pattern)
+	}
+
+	FormatSelections(buf, text, linkWriter, segmentIter, selectionTag, comments, highlights, selection)
+
+	// Now copy buf to saved, adding line anchors.
+
+	// The lineSelection mechanism can't be composed with our
+	// linkWriter, so we have to add line spans as another pass.
+	n := 1
+	for _, line := range bytes.Split(buf.Bytes(), []byte("\n")) {
+		fmt.Fprintf(saved, "<span id=\"L%d\" class=\"ln\">%6d</span>\t", n, n)
+		n++
+		saved.Write(line)
+		saved.WriteByte('\n')
+	}
 }
 
 func (p *Presentation) serveDirectory(w http.ResponseWriter, r *http.Request, abspath, relpath string) {
@@ -585,4 +713,19 @@ func (p *Presentation) serveFile(w http.ResponseWriter, r *http.Request) {
 func (p *Presentation) ServeText(w http.ResponseWriter, text []byte) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write(text)
+}
+
+func marshalJSON(x interface{}) []byte {
+	var data []byte
+	var err error
+	const indentJSON = false // for easier debugging
+	if indentJSON {
+		data, err = json.MarshalIndent(x, "", "    ")
+	} else {
+		data, err = json.Marshal(x)
+	}
+	if err != nil {
+		panic(fmt.Sprintf("json.Marshal failed: %s", err))
+	}
+	return data
 }

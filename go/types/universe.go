@@ -17,42 +17,44 @@ var (
 	Universe     *Scope
 	Unsafe       *Package
 	universeIota *Const
+	UniverseByte *Basic // uint8 alias, but has name "byte"
+	UniverseRune *Basic // int32 alias, but has name "rune"
 )
 
 var Typ = [...]*Basic{
-	Invalid: {Invalid, 0, 0, "invalid type"},
+	Invalid: {Invalid, 0, "invalid type"},
 
-	Bool:          {Bool, IsBoolean, 1, "bool"},
-	Int:           {Int, IsInteger, 0, "int"},
-	Int8:          {Int8, IsInteger, 1, "int8"},
-	Int16:         {Int16, IsInteger, 2, "int16"},
-	Int32:         {Int32, IsInteger, 4, "int32"},
-	Int64:         {Int64, IsInteger, 8, "int64"},
-	Uint:          {Uint, IsInteger | IsUnsigned, 0, "uint"},
-	Uint8:         {Uint8, IsInteger | IsUnsigned, 1, "uint8"},
-	Uint16:        {Uint16, IsInteger | IsUnsigned, 2, "uint16"},
-	Uint32:        {Uint32, IsInteger | IsUnsigned, 4, "uint32"},
-	Uint64:        {Uint64, IsInteger | IsUnsigned, 8, "uint64"},
-	Uintptr:       {Uintptr, IsInteger | IsUnsigned, 0, "uintptr"},
-	Float32:       {Float32, IsFloat, 4, "float32"},
-	Float64:       {Float64, IsFloat, 8, "float64"},
-	Complex64:     {Complex64, IsComplex, 8, "complex64"},
-	Complex128:    {Complex128, IsComplex, 16, "complex128"},
-	String:        {String, IsString, 0, "string"},
-	UnsafePointer: {UnsafePointer, 0, 0, "Pointer"},
+	Bool:          {Bool, IsBoolean, "bool"},
+	Int:           {Int, IsInteger, "int"},
+	Int8:          {Int8, IsInteger, "int8"},
+	Int16:         {Int16, IsInteger, "int16"},
+	Int32:         {Int32, IsInteger, "int32"},
+	Int64:         {Int64, IsInteger, "int64"},
+	Uint:          {Uint, IsInteger | IsUnsigned, "uint"},
+	Uint8:         {Uint8, IsInteger | IsUnsigned, "uint8"},
+	Uint16:        {Uint16, IsInteger | IsUnsigned, "uint16"},
+	Uint32:        {Uint32, IsInteger | IsUnsigned, "uint32"},
+	Uint64:        {Uint64, IsInteger | IsUnsigned, "uint64"},
+	Uintptr:       {Uintptr, IsInteger | IsUnsigned, "uintptr"},
+	Float32:       {Float32, IsFloat, "float32"},
+	Float64:       {Float64, IsFloat, "float64"},
+	Complex64:     {Complex64, IsComplex, "complex64"},
+	Complex128:    {Complex128, IsComplex, "complex128"},
+	String:        {String, IsString, "string"},
+	UnsafePointer: {UnsafePointer, 0, "Pointer"},
 
-	UntypedBool:    {UntypedBool, IsBoolean | IsUntyped, 0, "untyped boolean"},
-	UntypedInt:     {UntypedInt, IsInteger | IsUntyped, 0, "untyped integer"},
-	UntypedRune:    {UntypedRune, IsInteger | IsUntyped, 0, "untyped rune"},
-	UntypedFloat:   {UntypedFloat, IsFloat | IsUntyped, 0, "untyped float"},
-	UntypedComplex: {UntypedComplex, IsComplex | IsUntyped, 0, "untyped complex"},
-	UntypedString:  {UntypedString, IsString | IsUntyped, 0, "untyped string"},
-	UntypedNil:     {UntypedNil, IsUntyped, 0, "untyped nil"},
+	UntypedBool:    {UntypedBool, IsBoolean | IsUntyped, "untyped bool"},
+	UntypedInt:     {UntypedInt, IsInteger | IsUntyped, "untyped int"},
+	UntypedRune:    {UntypedRune, IsInteger | IsUntyped, "untyped rune"},
+	UntypedFloat:   {UntypedFloat, IsFloat | IsUntyped, "untyped float"},
+	UntypedComplex: {UntypedComplex, IsComplex | IsUntyped, "untyped complex"},
+	UntypedString:  {UntypedString, IsString | IsUntyped, "untyped string"},
+	UntypedNil:     {UntypedNil, IsUntyped, "untyped nil"},
 }
 
 var aliases = [...]*Basic{
-	{Byte, IsInteger | IsUnsigned, 1, "byte"},
-	{Rune, IsInteger, 4, "rune"},
+	{Byte, IsInteger | IsUnsigned, "byte"},
+	{Rune, IsInteger, "rune"},
 }
 
 func defPredeclaredTypes() {
@@ -67,7 +69,7 @@ func defPredeclaredTypes() {
 	res := NewVar(token.NoPos, nil, "", Typ[String])
 	sig := &Signature{results: NewTuple(res)}
 	err := NewFunc(token.NoPos, nil, "Error", sig)
-	typ := &Named{underlying: NewInterface([]*Func{err}, nil), complete: true}
+	typ := &Named{underlying: NewInterface([]*Func{err}, nil)}
 	sig.recv = NewVar(token.NoPos, nil, "", typ)
 	def(NewTypeName(token.NoPos, nil, "error", typ))
 }
@@ -175,8 +177,8 @@ func DefPredeclaredTestFuncs() {
 }
 
 func init() {
-	Universe = NewScope(nil)
-	Unsafe = NewPackage("unsafe", "unsafe", NewScope(Universe))
+	Universe = NewScope(nil, "universe")
+	Unsafe = NewPackage("unsafe", "unsafe")
 	Unsafe.complete = true
 
 	defPredeclaredTypes()
@@ -185,6 +187,8 @@ func init() {
 	defPredeclaredFuncs()
 
 	universeIota = Universe.Lookup("iota").(*Const)
+	UniverseByte = Universe.Lookup("byte").(*TypeName).typ.(*Basic)
+	UniverseRune = Universe.Lookup("rune").(*TypeName).typ.(*Basic)
 }
 
 // Objects with names containing blanks are internal and not entered into
@@ -202,7 +206,7 @@ func def(obj Object) {
 	}
 	// exported identifiers go into package unsafe
 	scope := Universe
-	if obj.IsExported() {
+	if obj.Exported() {
 		scope = Unsafe.scope
 		// set Pkg field
 		switch obj := obj.(type) {

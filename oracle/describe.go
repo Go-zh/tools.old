@@ -14,10 +14,10 @@ import (
 
 	"code.google.com/p/go.tools/astutil"
 	"code.google.com/p/go.tools/go/exact"
+	"code.google.com/p/go.tools/go/loader"
 	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/importer"
+	"code.google.com/p/go.tools/go/types/typeutil"
 	"code.google.com/p/go.tools/oracle/serial"
-	"code.google.com/p/go.tools/ssa"
 )
 
 // describe describes the syntax node denoted by the query position,
@@ -90,7 +90,7 @@ const (
 // and returns the most "interesting" associated node, which may be
 // the same node, an ancestor or a descendent.
 //
-func findInterestingNode(pkginfo *importer.PackageInfo, path []ast.Node) ([]ast.Node, action) {
+func findInterestingNode(pkginfo *loader.PackageInfo, path []ast.Node) ([]ast.Node, action) {
 	// TODO(adonovan): integrate with go/types/stdlib_test.go and
 	// apply this to every AST node we can find to make sure it
 	// doesn't crash.
@@ -498,7 +498,7 @@ func describePackage(o *Oracle, qpos *QueryPos, path []ast.Node) (*describePacka
 	switch n := path[0].(type) {
 	case *ast.ImportSpec:
 		pkgname := qpos.info.ImportSpecPkg(n)
-		description = fmt.Sprintf("import of package %q", pkgname.Name())
+		description = fmt.Sprintf("import of package %q", pkgname.Pkg().Path())
 		pkg = pkgname.Pkg()
 
 	case *ast.Ident:
@@ -712,7 +712,7 @@ func pathToString(path []ast.Node) string {
 
 func accessibleMethods(t types.Type, from *types.Package) []*types.Selection {
 	var methods []*types.Selection
-	for _, meth := range ssa.IntuitiveMethodSet(t) {
+	for _, meth := range typeutil.IntuitiveMethodSet(t, nil) {
 		if isAccessibleFrom(meth.Obj(), from) {
 			methods = append(methods, meth)
 		}

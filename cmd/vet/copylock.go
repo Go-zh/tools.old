@@ -8,9 +8,10 @@ package main
 
 import (
 	"bytes"
-	"code.google.com/p/go.tools/go/types"
 	"fmt"
 	"go/ast"
+
+	"code.google.com/p/go.tools/go/types"
 )
 
 // checkCopyLocks checks whether a function might
@@ -24,16 +25,16 @@ func (f *File) checkCopyLocks(d *ast.FuncDecl) {
 
 	if d.Recv != nil && len(d.Recv.List) > 0 {
 		expr := d.Recv.List[0].Type
-		if path := lockPath(f.pkg.typesPkg, f.pkg.types[expr]); path != nil {
-			f.Warnf(expr.Pos(), "%s passes Lock by value: %v", d.Name.Name, path)
+		if path := lockPath(f.pkg.typesPkg, f.pkg.types[expr].Type); path != nil {
+			f.Badf(expr.Pos(), "%s passes Lock by value: %v", d.Name.Name, path)
 		}
 	}
 
 	if d.Type.Params != nil {
 		for _, field := range d.Type.Params.List {
 			expr := field.Type
-			if path := lockPath(f.pkg.typesPkg, f.pkg.types[expr]); path != nil {
-				f.Warnf(expr.Pos(), "%s passes Lock by value: %v", d.Name.Name, path)
+			if path := lockPath(f.pkg.typesPkg, f.pkg.types[expr].Type); path != nil {
+				f.Badf(expr.Pos(), "%s passes Lock by value: %v", d.Name.Name, path)
 			}
 		}
 	}
@@ -41,8 +42,8 @@ func (f *File) checkCopyLocks(d *ast.FuncDecl) {
 	if d.Type.Results != nil {
 		for _, field := range d.Type.Results.List {
 			expr := field.Type
-			if path := lockPath(f.pkg.typesPkg, f.pkg.types[expr]); path != nil {
-				f.Warnf(expr.Pos(), "%s returns Lock by value: %v", d.Name.Name, path)
+			if path := lockPath(f.pkg.typesPkg, f.pkg.types[expr].Type); path != nil {
+				f.Badf(expr.Pos(), "%s returns Lock by value: %v", d.Name.Name, path)
 			}
 		}
 	}
@@ -81,8 +82,8 @@ func lockPath(tpkg *types.Package, typ types.Type) typePath {
 	// We're looking for cases in which a reference to this type
 	// can be locked, but a value cannot. This differentiates
 	// embedded interfaces from embedded values.
-	if plock := types.NewPointer(typ).MethodSet().Lookup(tpkg, "Lock"); plock != nil {
-		if lock := typ.MethodSet().Lookup(tpkg, "Lock"); lock == nil {
+	if plock := types.NewMethodSet(types.NewPointer(typ)).Lookup(tpkg, "Lock"); plock != nil {
+		if lock := types.NewMethodSet(typ).Lookup(tpkg, "Lock"); lock == nil {
 			return []types.Type{typ}
 		}
 	}

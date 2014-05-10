@@ -35,6 +35,7 @@ func registerHandlers(pres *godoc.Presentation) {
 	http.Handle("/doc/play/", pres.FileServer())
 	http.Handle("/robots.txt", pres.FileServer())
 	http.Handle("/", pres)
+	http.Handle("/pkg/C/", redirect.Handler("/cmd/cgo/"))
 	redirect.Register(nil)
 }
 
@@ -65,12 +66,18 @@ func readTemplates(p *godoc.Presentation, html bool) {
 	if html || p.HTMLMode {
 		codewalkHTML = readTemplate("codewalk.html")
 		codewalkdirHTML = readTemplate("codewalkdir.html")
+		p.CallGraphHTML = readTemplate("callgraph.html")
 		p.DirlistHTML = readTemplate("dirlist.html")
 		p.ErrorHTML = readTemplate("error.html")
 		p.ExampleHTML = readTemplate("example.html")
 		p.GodocHTML = readTemplate("godoc.html")
+		p.ImplementsHTML = readTemplate("implements.html")
+		p.MethodSetHTML = readTemplate("methodset.html")
 		p.PackageHTML = readTemplate("package.html")
 		p.SearchHTML = readTemplate("search.html")
+		p.SearchDocHTML = readTemplate("searchdoc.html")
+		p.SearchCodeHTML = readTemplate("searchcode.html")
+		p.SearchTxtHTML = readTemplate("searchtxt.html")
 		p.SearchDescXML = readTemplate("opensearch.xml")
 	}
 }

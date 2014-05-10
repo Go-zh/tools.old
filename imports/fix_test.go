@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -470,6 +471,75 @@ func main() {
 }
 `,
 	},
+
+	// golang.org/issue/7132
+	{
+		name: "issue 7132",
+		in: `package main
+
+import (
+"fmt"
+
+"gu"
+"github.com/foo/bar"
+)
+
+var (
+a = bar.a
+b = gu.a
+c = fmt.Printf
+)
+`,
+		out: `package main
+
+import (
+	"fmt"
+
+	"gu"
+
+	"github.com/foo/bar"
+)
+
+var (
+	a = bar.a
+	b = gu.a
+	c = fmt.Printf
+)
+`,
+	},
+
+	{
+		name: "renamed package",
+		in: `package main
+
+var _ = str.HasPrefix
+`,
+		out: `package main
+
+import str "strings"
+
+var _ = str.HasPrefix
+`,
+	},
+
+	{
+		name: "fragment with main",
+		in:   `func main(){fmt.Println("Hello, world")}`,
+		out: `package main
+
+import "fmt"
+
+func main() { fmt.Println("Hello, world") }
+`,
+	},
+
+	{
+		name: "fragment without main",
+		in:   `func notmain(){fmt.Println("Hello, world")}`,
+		out: `import "fmt"
+
+func notmain() { fmt.Println("Hello, world") }`,
+	},
 }
 
 func TestFixImports(t *testing.T) {
@@ -482,16 +552,24 @@ func TestFixImports(t *testing.T) {
 		"zip":       "archive/zip",
 		"bytes":     "bytes",
 		"snappy":    "code.google.com/p/snappy-go/snappy",
+		"str":       "strings",
 	}
-	findImport = func(pkgName string, symbols map[string]bool) (string, error) {
-		return simplePkgs[pkgName], nil
+	findImport = func(pkgName string, symbols map[string]bool) (string, bool, error) {
+		return simplePkgs[pkgName], pkgName == "str", nil
+	}
+
+	options := &Options{
+		TabWidth:  8,
+		TabIndent: true,
+		Comments:  true,
+		Fragment:  true,
 	}
 
 	for _, tt := range tests {
 		if *only != "" && tt.name != *only {
 			continue
 		}
-		buf, err := Process("foo.go", []byte(tt.in), nil)
+		buf, err := Process(tt.name+".go", []byte(tt.in), options)
 		if err != nil {
 			t.Errorf("error on %q: %v", tt.name, err)
 			continue
@@ -508,6 +586,15 @@ func TestFindImportGoPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(goroot)
+
+	pkgIndexOnce = sync.Once{}
+
+	origStdlib := stdlib
+	defer func() {
+		stdlib = origStdlib
+	}()
+	stdlib = nil
+
 	// Test against imaginary bits/bytes package in std lib
 	bytesDir := filepath.Join(goroot, "src", "pkg", "bits", "bytes")
 	if err := os.MkdirAll(bytesDir, 0755); err != nil {
@@ -531,19 +618,50 @@ type Buffer2 struct {}
 		build.Default.GOPATH = oldGOPATH
 	}()
 
-	got, err := findImportGoPath("bytes", map[string]bool{"Buffer2": true})
+	got, rename, err := findImportGoPath("bytes", map[string]bool{"Buffer2": true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != bytesPkgPath {
-		t.Errorf(`findImportGoPath("bytes", Buffer2 ...)=%q, want "%s"`, got, bytesPkgPath)
+	if got != bytesPkgPath || rename {
+		t.Errorf(`findImportGoPath("bytes", Buffer2 ...)=%q, %t, want "%s", false`, got, rename, bytesPkgPath)
 	}
 
-	got, err = findImportGoPath("bytes", map[string]bool{"Missing": true})
+	got, rename, err = findImportGoPath("bytes", map[string]bool{"Missing": true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "" {
-		t.Errorf(`findImportGoPath("bytes", Missing ...)=%q, want ""`, got)
+	if got != "" || rename {
+		t.Errorf(`findImportGoPath("bytes", Missing ...)=%q, %t, want "", false`, got, rename)
 	}
+}
+
+func TestFindImportStdlib(t *testing.T) {
+	tests := []struct {
+		pkg     string
+		symbols []string
+		want    string
+	}{
+		{"http", []string{"Get"}, "net/http"},
+		{"http", []string{"Get", "Post"}, "net/http"},
+		{"http", []string{"Get", "Foo"}, ""},
+		{"bytes", []string{"Buffer"}, "bytes"},
+		{"ioutil", []string{"Discard"}, "io/ioutil"},
+	}
+	for _, tt := range tests {
+		got, rename, ok := findImportStdlib(tt.pkg, strSet(tt.symbols))
+		if (got != "") != ok {
+			t.Error("findImportStdlib return value inconsistent")
+		}
+		if got != tt.want || rename {
+			t.Errorf("findImportStdlib(%q, %q) = %q, %t; want %q, false", tt.pkg, tt.symbols, got, rename, tt.want)
+		}
+	}
+}
+
+func strSet(ss []string) map[string]bool {
+	m := make(map[string]bool)
+	for _, s := range ss {
+		m[s] = true
+	}
+	return m
 }

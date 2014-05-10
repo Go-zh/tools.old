@@ -24,8 +24,8 @@ var builtinCalls = []struct {
 	// Note that ...uint8 (instead of ..byte) appears below because that is the type
 	// that corresponds to Typ[byte] (an alias) - in the other cases, the type name
 	// is chosen by the source. Either way, byte and uint8 denote identical types.
-	{"append", `var s []byte; _ = append(s, "foo"...)`, `func([]byte, ...uint8) []byte`},
-	{"append", `type T []byte; var s T; _ = append(s, "foo"...)`, `func(p.T, ...uint8) p.T`},
+	{"append", `var s []byte; _ = append(s, "foo"...)`, `func([]byte, ...byte) []byte`},
+	{"append", `type T []byte; var s T; _ = append(s, "foo"...)`, `func(p.T, ...byte) p.T`},
 
 	{"cap", `var s [10]int; _ = cap(s)`, `invalid type`},  // constant
 	{"cap", `var s [10]int; _ = cap(&s)`, `invalid type`}, // constant
@@ -133,9 +133,9 @@ func testBuiltinSignature(t *testing.T, name, src0, want string) {
 	}
 
 	var conf Config
-	objects := make(map[*ast.Ident]Object)
-	types := make(map[ast.Expr]Type)
-	_, err = conf.Check(f.Name.Name, fset, []*ast.File{f}, &Info{Objects: objects, Types: types})
+	uses := make(map[*ast.Ident]Object)
+	types := make(map[ast.Expr]TypeAndValue)
+	_, err = conf.Check(f.Name.Name, fset, []*ast.File{f}, &Info{Uses: uses, Types: types})
 	if err != nil {
 		t.Errorf("%s: %s", src0, err)
 		return
@@ -144,7 +144,7 @@ func testBuiltinSignature(t *testing.T, name, src0, want string) {
 	// find called function
 	n := 0
 	var fun ast.Expr
-	for x, _ := range types {
+	for x := range types {
 		if call, _ := x.(*ast.CallExpr); call != nil {
 			fun = call.Fun
 			n++
@@ -158,7 +158,7 @@ func testBuiltinSignature(t *testing.T, name, src0, want string) {
 	// check recorded types for fun and descendents (may be parenthesized)
 	for {
 		// the recorded type for the built-in must match the wanted signature
-		typ := types[fun]
+		typ := types[fun].Type
 		if typ == nil {
 			t.Errorf("%s: no type recorded for %s", src0, ExprString(fun))
 			return
@@ -172,7 +172,7 @@ func testBuiltinSignature(t *testing.T, name, src0, want string) {
 		// identifier denoting the expected built-in
 		switch p := fun.(type) {
 		case *ast.Ident:
-			obj := objects[p]
+			obj := uses[p]
 			if obj == nil {
 				t.Errorf("%s: no object found for %s", src0, p)
 				return

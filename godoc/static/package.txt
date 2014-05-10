@@ -1,64 +1,92 @@
-{{with .PAst}}{{node $ .}}{{end}}{{/*
+{{$info := .}}{{$filtered := .IsFiltered}}{{/*
 
 ---------------------------------------
 
-*/}}{{with .PDoc}}{{if $.IsMain}}COMMAND DOCUMENTATION
+*/}}{{if $filtered}}{{range .PAst}}{{range .Decls}}{{node $info .}}{{end}}{{end}}{{else}}{{with .PAst}}{{range $filename, $ast := .}}{{$filename}}:
+{{node $ $ast}}{{end}}{{end}}{{end}}{{/*
+
+---------------------------------------
+
+*/}}{{if and $filtered (not (or .PDoc .PAst))}}No match found.
+{{end}}{{with .PDoc}}{{if $.IsMain}}COMMAND DOCUMENTATION
 
 {{comment_text .Doc "    " "\t"}}
-{{else}}PACKAGE DOCUMENTATION
+{{else}}{{if not $filtered}}PACKAGE DOCUMENTATION
 
 package {{.Name}}
     import "{{.ImportPath}}"
 
 {{comment_text .Doc "    " "\t"}}
-{{example_text $ "" "    "}}{{/*
+{{example_text $ "" "    "}}{{end}}{{/*
 
 ---------------------------------------
 
-*/}}{{with .Consts}}
-CONSTANTS
+*/}}{{with .Consts}}{{if not $filtered}}CONSTANTS
 
-{{range .}}{{node $ .Decl}}
+{{end}}{{range .}}{{node $ .Decl}}
 {{comment_text .Doc "    " "\t"}}
 {{end}}{{end}}{{/*
 
 ---------------------------------------
 
-*/}}{{with .Vars}}
-VARIABLES
+*/}}{{with .Vars}}{{if not $filtered}}VARIABLES
 
-{{range .}}{{node $ .Decl}}
+{{end}}{{range .}}{{node $ .Decl}}
 {{comment_text .Doc "    " "\t"}}
 {{end}}{{end}}{{/*
 
 ---------------------------------------
 
-*/}}{{with .Funcs}}
-FUNCTIONS
+*/}}{{with .Funcs}}{{if not $filtered}}FUNCTIONS
 
-{{range .}}{{node $ .Decl}}
+{{end}}{{range .}}{{node $ .Decl}}
 {{comment_text .Doc "    " "\t"}}
 {{example_text $ .Name "    "}}{{end}}{{end}}{{/*
 
 ---------------------------------------
 
-*/}}{{with .Types}}
-TYPES
+*/}}{{with .Types}}{{if not $filtered}}TYPES
 
-{{range .}}{{$tname := .Name}}{{node $ .Decl}}
+{{end}}{{range .}}{{$tname := .Name}}{{node $ .Decl}}
 {{comment_text .Doc "    " "\t"}}
-{{range .Consts}}{{node $ .Decl}}
+{{/*
+
+---------------------------------------
+
+*/}}{{if .Consts}}{{range .Consts}}{{node $ .Decl}}
 {{comment_text .Doc "    " "\t"}}
-{{end}}{{range .Vars}}{{node $ .Decl}}
+{{end}}{{end}}{{/*
+
+---------------------------------------
+
+*/}}{{if .Vars}}{{range .Vars}}{{node $ .Decl}}
 {{comment_text .Doc "    " "\t"}}
-{{end}}{{example_text $ .Name "    "}}
-{{range .Funcs}}{{node $ .Decl}}
+{{range $name := .Names}}{{example_text $ $name "    "}}{{end}}{{end}}{{end}}{{/*
+
+---------------------------------------
+
+*/}}{{if .Funcs}}{{range .Funcs}}{{node $ .Decl}}
 {{comment_text .Doc "    " "\t"}}
-{{example_text $ .Name "    "}}
-{{end}}{{range .Methods}}{{node $ .Decl}}
+{{example_text $ .Name "    "}}{{end}}{{end}}{{/*
+
+---------------------------------------
+
+*/}}{{if .Methods}}{{range .Methods}}{{node $ .Decl}}
 {{comment_text .Doc "    " "\t"}}
-{{$name := printf "%s_%s" $tname .Name}}{{example_text $ $name "    "}}{{end}}
-{{end}}{{end}}{{end}}{{/*
+{{$name := printf "%s_%s" $tname .Name}}{{example_text $ $name "    "}}{{end}}{{end}}{{/*
+
+---------------------------------------
+
+*/}}{{end}}{{end}}{{/*
+
+---------------------------------------
+
+*/}}{{if and $filtered (not (or .Consts (or .Vars (or .Funcs .Types))))}}No match found.
+{{end}}{{/*
+
+---------------------------------------
+
+*/}}{{end}}{{/*
 
 ---------------------------------------
 
@@ -71,10 +99,16 @@ TYPES
 
 ---------------------------------------
 
-*/}}{{with .Dirs}}
-SUBDIRECTORIES
+*/}}{{if not $filtered}}{{with .Dirs}}SUBDIRECTORIES
 {{if $.DirFlat}}{{range .List}}{{if .HasPkg}}
 	{{.Path}}{{end}}{{end}}
 {{else}}{{range .List}}
 	{{repeat `. ` .Depth}}{{.Name}}{{end}}
-{{end}}{{end}}
+{{end}}{{end}}{{/*
+
+---------------------------------------
+
+*/}}{{end}}{{/*
+Make sure there is no newline at the end of this file.
+perl -i -pe 'chomp if eof' package.txt
+*/}}

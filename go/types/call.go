@@ -16,7 +16,7 @@ func (check *checker) call(x *operand, e *ast.CallExpr) exprKind {
 
 	switch x.mode {
 	case invalid:
-		check.use(e.Args)
+		check.use(e.Args...)
 		x.mode = invalid
 		x.expr = e
 		return statement
@@ -32,9 +32,6 @@ func (check *checker) call(x *operand, e *ast.CallExpr) exprKind {
 			check.expr(x, e.Args[0])
 			if x.mode != invalid {
 				check.conversion(x, T)
-				if x.mode != invalid {
-					check.conversions[e] = true // for cap/len checking
-				}
 			}
 		default:
 			check.errorf(e.Args[n-1].Pos(), "too many arguments in conversion to %s", T)
@@ -48,6 +45,10 @@ func (check *checker) call(x *operand, e *ast.CallExpr) exprKind {
 			x.mode = invalid
 		}
 		x.expr = e
+		// a non-constant result implies a function call
+		if x.mode != invalid && x.mode != constant {
+			check.hasCallOrRecv = true
+		}
 		return predeclaredFuncs[id].kind
 
 	default:
@@ -75,17 +76,18 @@ func (check *checker) call(x *operand, e *ast.CallExpr) exprKind {
 			x.typ = sig.results
 		}
 		x.expr = e
+		check.hasCallOrRecv = true
 
 		return statement
 	}
 }
 
-// use type-checks each list element.
-// Useful to make sure a list of expressions is evaluated
+// use type-checks each argument.
+// Useful to make sure expressions are evaluated
 // (and variables are "used") in the presence of other errors.
-func (check *checker) use(list []ast.Expr) {
+func (check *checker) use(arg ...ast.Expr) {
 	var x operand
-	for _, e := range list {
+	for _, e := range arg {
 		check.rawExpr(&x, e, nil)
 	}
 }
@@ -167,7 +169,7 @@ func (check *checker) arguments(x *operand, call *ast.CallExpr, sig *Signature, 
 	passSlice := false
 	if call.Ellipsis.IsValid() {
 		// last argument is of the form x...
-		if sig.isVariadic {
+		if sig.variadic {
 			passSlice = true
 		} else {
 			check.errorf(call.Ellipsis, "cannot use ... in call to non-variadic %s", call.Fun)
@@ -184,7 +186,7 @@ func (check *checker) arguments(x *operand, call *ast.CallExpr, sig *Signature, 
 	}
 
 	// check argument count
-	if sig.isVariadic {
+	if sig.variadic {
 		// a variadic function accepts an "empty"
 		// last argument: count one extra
 		n++
@@ -205,7 +207,7 @@ func (check *checker) argument(sig *Signature, i int, x *operand, passSlice bool
 	switch {
 	case i < n:
 		typ = sig.params.vars[i].typ
-	case sig.isVariadic:
+	case sig.variadic:
 		typ = sig.params.vars[n-1].typ
 		if debug {
 			if _, ok := typ.(*Slice); !ok {
@@ -227,7 +229,7 @@ func (check *checker) argument(sig *Signature, i int, x *operand, passSlice bool
 			check.errorf(x.pos(), "cannot use %s as parameter of type %s", x, typ)
 			return
 		}
-	} else if sig.isVariadic && i >= n-1 {
+	} else if sig.variadic && i >= n-1 {
 		// use the variadic parameter slice's element type
 		typ = typ.(*Slice).elem
 	}
@@ -251,8 +253,8 @@ func (check *checker) selector(x *operand, e *ast.SelectorExpr) {
 	// can only appear in qualified identifiers which are mapped to
 	// selector expressions.
 	if ident, ok := e.X.(*ast.Ident); ok {
-		if pkg, _ := check.topScope.LookupParent(ident.Name).(*PkgName); pkg != nil {
-			check.recordObject(ident, pkg)
+		if pkg, _ := check.scope.LookupParent(ident.Name).(*PkgName); pkg != nil {
+			check.recordUse(ident, pkg)
 			pkg.used = true
 			exp := pkg.pkg.scope.Lookup(sel)
 			if exp == nil {
@@ -261,13 +263,12 @@ func (check *checker) selector(x *operand, e *ast.SelectorExpr) {
 				}
 				goto Error
 			}
-			if !exp.IsExported() {
+			if !exp.Exported() {
 				check.errorf(e.Pos(), "%s not exported by package %s", sel, ident)
 				// ok to continue
 			}
 			check.recordSelection(e, PackageObj, nil, exp, nil, false)
 			// Simplified version of the code for *ast.Idents:
-			// - imported packages use types.Scope and types.Objects
 			// - imported objects are always fully initialized
 			switch exp := exp.(type) {
 			case *Const:
@@ -337,9 +338,9 @@ func (check *checker) selector(x *operand, e *ast.SelectorExpr) {
 		}
 		x.mode = value
 		x.typ = &Signature{
-			params:     NewTuple(append([]*Var{NewVar(token.NoPos, check.pkg, "", x.typ)}, params...)...),
-			results:    sig.results,
-			isVariadic: sig.isVariadic,
+			params:   NewTuple(append([]*Var{NewVar(token.NoPos, check.pkg, "", x.typ)}, params...)...),
+			results:  sig.results,
+			variadic: sig.variadic,
 		}
 
 		check.addDeclDep(m)
@@ -392,7 +393,7 @@ func (check *checker) selector(x *operand, e *ast.SelectorExpr) {
 				// TODO(gri) Consider also using a method set cache for the lifetime
 				// of checker once we rely on MethodSet lookup instead of individual
 				// lookup.
-				mset := typ.MethodSet()
+				mset := NewMethodSet(typ)
 				if m := mset.Lookup(check.pkg, sel); m == nil || m.obj != obj {
 					check.dump("%s: (%s).%v -> %s", e.Pos(), typ, obj.name, m)
 					check.dump("%s\n", mset)
@@ -406,6 +407,8 @@ func (check *checker) selector(x *operand, e *ast.SelectorExpr) {
 			sig := *obj.typ.(*Signature)
 			sig.recv = nil
 			x.typ = &sig
+
+			check.addDeclDep(obj)
 
 		default:
 			unreachable()

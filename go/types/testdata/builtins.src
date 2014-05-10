@@ -112,6 +112,32 @@ func cap2() {
 	_ = cap(f2()) // ERROR too many arguments
 }
 
+// test cases for issue 7387
+func cap3() {
+	var f = func() int { return 0 }
+	var x = f()
+	const (
+		_ = cap([4]int{})
+		_ = cap([4]int{x})
+		_ = cap /* ERROR not constant */ ([4]int{f()})
+		_ = cap /* ERROR not constant */ ([4]int{cap([]int{})})
+		_ = cap([4]int{cap([4]int{})})
+	)
+	var y float64
+	var z complex128
+	const (
+		_ = cap([4]float64{})
+		_ = cap([4]float64{y})
+		_ = cap([4]float64{real(2i)})
+		_ = cap /* ERROR not constant */ ([4]float64{real(z)})
+	)
+	var ch chan [10]int
+	const (
+		_ = cap /* ERROR not constant */ (<-ch)
+		_ = cap /* ERROR not constant */ ([4]int{(<-ch)[0]})
+	)
+}
+
 func close1() {
 	var c chan int
 	var r <-chan int
@@ -356,6 +382,32 @@ func len2() {
 	_ = len(f2()) // ERROR too many arguments
 }
 
+// test cases for issue 7387
+func len3() {
+	var f = func() int { return 0 }
+	var x = f()
+	const (
+		_ = len([4]int{})
+		_ = len([4]int{x})
+		_ = len /* ERROR not constant */ ([4]int{f()})
+		_ = len /* ERROR not constant */ ([4]int{len([]int{})})
+		_ = len([4]int{len([4]int{})})
+	)
+	var y float64
+	var z complex128
+	const (
+		_ = len([4]float64{})
+		_ = len([4]float64{y})
+		_ = len([4]float64{real(2i)})
+		_ = len /* ERROR not constant */ ([4]float64{real(z)})
+	)
+	var ch chan [10]int
+	const (
+		_ = len /* ERROR not constant */ (<-ch)
+		_ = len /* ERROR not constant */ ([4]int{(<-ch)[0]})
+	)
+}
+
 func make1() {
 	var n int
 	var m float32
@@ -384,6 +436,7 @@ func make1() {
 	_ = make([]int, 10 /* ERROR length and capacity swapped */ , 9)
 	_ = make([]int, 1 /* ERROR overflows */ <<100, 12345)
 	_ = make([]int, m /* ERROR must be integer */ )
+        _ = &make /* ERROR cannot take address */ ([]int, 0)
 
 	// maps
 	_ = make /* ERROR arguments */ (map[int]string, 10, 20)
@@ -394,16 +447,19 @@ func make1() {
 	_ = make(map[int]float32, int64(n))
 	_ = make(map[string]bool, 10.0)
 	_ = make(map[string]bool, 10.0<<s)
+        _ = &make /* ERROR cannot take address */ (map[string]bool)
 
 	// channels
 	_ = make /* ERROR arguments */ (chan int, 10, 20)
 	_ = make(chan int, int /* ERROR not an expression */)
 	_ = make(chan<- int, "foo" /* ERROR cannot convert */)
+	_ = make(chan int, - /* ERROR must not be negative */ 10)
 	_ = make(<-chan float64, 10)
 	_ = make(chan chan int, n)
 	_ = make(chan string, int64(n))
 	_ = make(chan bool, 10.0)
 	_ = make(chan bool, 10.0<<s)
+        _ = &make /* ERROR cannot take address */ (chan bool)
 
 	make /* ERROR not used */ ([]int, 10)
 
@@ -427,6 +483,7 @@ func new1() {
 	q := new(*float64)
 	_ = *p == **q
 	new /* ERROR not used */ (int)
+        _ = &new /* ERROR cannot take address */ (int)
 
 	_ = new(int... /* ERROR invalid use of \.\.\. */ )
 }
