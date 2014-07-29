@@ -29,7 +29,7 @@ replacement.
  	func before(s string) error { return fmt.Errorf("%s", s) }
  	func after(s string)  error { return errors.New(s) }
 
-The expression statement form is useful when the the expression has no
+The expression statement form is useful when the expression has no
 result, for example:
 
  	func before(msg string) { log.Fatalf("%s", msg) }
@@ -113,7 +113,7 @@ Dot imports are forbidden in the template.
 // TODO(adonovan): expand upon the above documentation as an HTML page.
 
 // TODO(adonovan): eliminate dependency on loader.PackageInfo.
-// Move its ObjectOf/IsType/TypeOf methods into go/types.
+// Move its TypeOf method into go/types.
 
 // A Transformer represents a single example-based transformation.
 type Transformer struct {
@@ -244,9 +244,10 @@ func NewTransformer(fset *token.FileSet, template *loader.PackageInfo, verbose b
 	// TODO reject dot-imports in pattern
 	ast.Inspect(after, func(n ast.Node) bool {
 		if n, ok := n.(*ast.SelectorExpr); ok {
-			sel := tr.info.Selections[n]
-			if sel.Kind() == types.PackageObj {
-				tr.importedObjs[sel.Obj()] = n
+			if _, ok := tr.info.Selections[n]; !ok {
+				// qualified ident
+				obj := tr.info.Uses[n.Sel]
+				tr.importedObjs[obj] = n
 				return false // prune
 			}
 		}

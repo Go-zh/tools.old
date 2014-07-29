@@ -11,7 +11,7 @@ import (
 	"go/token"
 )
 
-func (check *checker) call(x *operand, e *ast.CallExpr) exprKind {
+func (check *Checker) call(x *operand, e *ast.CallExpr) exprKind {
 	check.exprOrType(x, e.Fun)
 
 	switch x.mode {
@@ -85,7 +85,7 @@ func (check *checker) call(x *operand, e *ast.CallExpr) exprKind {
 // use type-checks each argument.
 // Useful to make sure expressions are evaluated
 // (and variables are "used") in the presence of other errors.
-func (check *checker) use(arg ...ast.Expr) {
+func (check *Checker) use(arg ...ast.Expr) {
 	var x operand
 	for _, e := range arg {
 		check.rawExpr(&x, e, nil)
@@ -140,7 +140,7 @@ func unpack(get getter, n int, allowCommaOk bool) (getter, int, bool) {
 		if x0.mode == mapindex || x0.mode == commaok {
 			// comma-ok value
 			if allowCommaOk {
-				a := [2]Type{x0.typ, Typ[UntypedBool]}
+				a := [2]Type{x0.typ, Typ[Bool]}
 				return func(x *operand, i int) {
 					x.mode = value
 					x.expr = x0.expr
@@ -165,7 +165,7 @@ func unpack(get getter, n int, allowCommaOk bool) (getter, int, bool) {
 
 // arguments checks argument passing for the call with the given signature.
 // The arg function provides the operand for the i'th argument.
-func (check *checker) arguments(x *operand, call *ast.CallExpr, sig *Signature, arg getter, n int) {
+func (check *Checker) arguments(x *operand, call *ast.CallExpr, sig *Signature, arg getter, n int) {
 	passSlice := false
 	if call.Ellipsis.IsValid() {
 		// last argument is of the form x...
@@ -199,7 +199,7 @@ func (check *checker) arguments(x *operand, call *ast.CallExpr, sig *Signature, 
 
 // argument checks passing of argument x to the i'th parameter of the given signature.
 // If passSlice is set, the argument is followed by ... in the call.
-func (check *checker) argument(sig *Signature, i int, x *operand, passSlice bool) {
+func (check *Checker) argument(sig *Signature, i int, x *operand, passSlice bool) {
 	n := sig.params.Len()
 
 	// determine parameter type
@@ -239,7 +239,7 @@ func (check *checker) argument(sig *Signature, i int, x *operand, passSlice bool
 	}
 }
 
-func (check *checker) selector(x *operand, e *ast.SelectorExpr) {
+func (check *Checker) selector(x *operand, e *ast.SelectorExpr) {
 	// these must be declared before the "goto Error" statements
 	var (
 		obj      Object
@@ -267,7 +267,7 @@ func (check *checker) selector(x *operand, e *ast.SelectorExpr) {
 				check.errorf(e.Pos(), "%s not exported by package %s", sel, ident)
 				// ok to continue
 			}
-			check.recordSelection(e, PackageObj, nil, exp, nil, false)
+			check.recordUse(e.Sel, exp)
 			// Simplified version of the code for *ast.Idents:
 			// - imported objects are always fully initialized
 			switch exp := exp.(type) {

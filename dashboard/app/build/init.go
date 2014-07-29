@@ -12,7 +12,9 @@ import (
 
 	"appengine"
 	"appengine/datastore"
+
 	"cache"
+	"key"
 )
 
 func initHandler(w http.ResponseWriter, r *http.Request) {
@@ -36,5 +38,9 @@ func initHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	// Create secret key.
+	key.Secret(c)
+
 	fmt.Fprint(w, "OK")
 }

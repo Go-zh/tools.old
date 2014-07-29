@@ -60,8 +60,8 @@ var Files = map[string]string{
   expression and the method set of each type, and determines which
   types are assignable to each interface type.
 
-  <b>Type analysis</b> is relatively quick, requiring just a few seconds for
-  the >200 packages of the standard library, for example.
+  <b>Type analysis</b> is relatively quick, requiring about 10 seconds for
+  the &gt;200 packages of the standard library, for example.
 </p>
 
 <h3>Compiler errors</h3>
@@ -122,7 +122,7 @@ var Files = map[string]string{
 
 <h2>Pointer analysis features</h2>
 <p>
-  <code>godoc -analysis=pointer</code> performs a precise
+  <code>godoc -analysis=pointer</code> additionally performs a precise
   whole-program <b>pointer analysis</b>.  In other words, it
   approximates the set of memory locations to which each
   reference&mdash;not just vars of kind <code>*T</code>, but also
@@ -134,10 +134,8 @@ var Files = map[string]string{
   channel.
 </p>
 <p>
-  <span class='err'>⚠</span> Pointer analysis is currently quite slow,
-  taking around two minutes for the standard library.  This will
-  improve markedly with the planned addition of a constraint
-  optimizer.
+  Pointer analysis is slower than type analysis, taking an additional
+  15 seconds or so for the standard libraries and their tests.
 </p>
 
 <h3>Call graph navigation</h3>
@@ -151,7 +149,7 @@ var Files = map[string]string{
 </p>
 <p>
   In this example, hovering over the declaration of the
-  <code>rot13</code> function (defined in in strings/strings.test.go)
+  <code>rot13</code> function (defined in strings/strings_test.go)
   reveals that it is called in exactly one place.
 </p>
 <img class="ss" width='612' src='callers1.png'>
@@ -271,9 +269,6 @@ var Files = map[string]string{
 
 <h2>Known issues</h2>
 <p>
-  <span class='err'>⚠</span> There is no UI indication of the state of
-  the analysis (pending, complete, failed) during warm-up.</br>
-
   <span class='err'>⚠</span> All analysis results pertain to exactly
   one configuration (e.g. amd64 linux).  Files that are conditionally
   compiled based on different platforms or build tags are not visible
@@ -535,7 +530,10 @@ var Files = map[string]string{
 </head>
 <body>
 
-<div id="mainframe" style="position: fixed; bottom: 0; top:0; overflow: auto; width: 100%;">
+<div id='lowframe' style="position: fixed; bottom: 0; left: 0; height: 0; width: 100%; border-top: thin solid grey; background-color: white; overflow: auto;">
+...
+</div><!-- #lowframe -->
+
 <div id="topbar"{{if .Title}} class="wide"{{end}}><div class="container">
 
 <form method="GET" action="/search">
@@ -632,11 +630,6 @@ and code is licensed under a <a href="/LICENSE">BSD license</a>.<br>
 
 </div><!-- .container -->
 </div><!-- #page -->
-
-</div><!-- #mainframe -->
-<div id='lowframe' style="position: absolute; bottom: 0; left: 0; height: 0; width: 100%; border-top: thin solid grey; background-color: white; overflow: auto;">
-...
-</div><!-- #lowframe -->
 
 <!-- TODO(adonovan): load these from <head> using "defer" attribute? -->
 <script type="text/javascript" src="/lib/godoc/jquery.js"></script>
@@ -807,7 +800,7 @@ function setupDropdownPlayground() {
       'runEl': $('.run', div),
       'fmtEl': $('.fmt', div),
       'shareEl': $('.share', div),
-      'shareRedirect': 'http://play.golang.org/p/'
+      'shareRedirect': '//play.golang.org/p/'
     });
   },
   function() {
@@ -831,7 +824,7 @@ function setupInlinePlayground() {
 				'runEl':    $('.run', el),
 				'fmtEl':    $('.fmt', el),
 				'shareEl':  $('.share', el),
-				'shareRedirect': 'http://play.golang.org/p/'
+				'shareRedirect': '//play.golang.org/p/'
 			});
 
 			// Make the code textarea resize to fit content.
@@ -2457,7 +2450,7 @@ function PlaygroundOutput(el) {
     }
 
     function keyHandler(e) {
-      if (e.keyCode == 9) { // tab
+      if (e.keyCode == 9 && !e.ctrlKey) { // tab (but not ctrl-tab)
         insertTabs(1);
         e.preventDefault();
         return false;
@@ -2778,7 +2771,7 @@ function PlaygroundOutput(el) {
 -->
 {{range $key, $val := .Idents}}
         {{if $val}}
-                <h2 id="Global">{{$key.Name}}</h2>
+		<h2 id="{{$key.Name}}">{{$key.Name}}</h2>
                 {{range $val}}
 	                {{$pkg_html := pkgLink .Path | html}}
 			{{if eq "Packages" $key.Name}}

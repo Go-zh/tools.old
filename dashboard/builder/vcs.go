@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"os"
@@ -127,6 +128,10 @@ func (r *Repo) Log() ([]HgLog, error) {
 			return err
 		}
 
+		// We have a commit with description that contains 0x1b byte.
+		// Mercurial does not escape it, but xml.Unmarshal does not accept it.
+		data = bytes.Replace(data, []byte{0x1b}, []byte{'?'}, -1)
+
 		err = xml.Unmarshal([]byte("<Top>"+string(data)+"</Top>"), &logStruct)
 		if err != nil {
 			return fmt.Errorf("unmarshal %s log: %v", r.Master.VCS, err)
@@ -135,6 +140,12 @@ func (r *Repo) Log() ([]HgLog, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	for i, log := range logStruct.Log {
+		// Let's pretend there can be only one parent.
+		if log.Parent != "" && strings.Contains(log.Parent, " ") {
+			logStruct.Log[i].Parent = strings.Split(log.Parent, " ")[0]
+		}
 	}
 	return logStruct.Log, nil
 }
@@ -174,19 +185,26 @@ type HgLog struct {
 	Date   string
 	Desc   string
 	Parent string
+	Branch string
+	Files  string
 
 	// Internal metadata
 	added bool
+	bench bool // needs to be benchmarked?
 }
 
 // xmlLogTemplate is a template to pass to Mercurial to make
 // hg log print the log in valid XML for parsing with xml.Unmarshal.
+// Can not escape branches and files, because it crashes python with:
+// AttributeError: 'NoneType' object has no attribute 'replace'
 const xmlLogTemplate = `
         <Log>
         <Hash>{node|escape}</Hash>
-        <Parent>{parent|escape}</Parent>
+        <Parent>{parents}</Parent>
         <Author>{author|escape}</Author>
         <Date>{date|rfc3339date}</Date>
         <Desc>{desc|escape}</Desc>
+        <Branch>{branches}</Branch>
+        <Files>{files}</Files>
         </Log>
 `

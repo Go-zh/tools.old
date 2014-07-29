@@ -9,13 +9,17 @@ import (
 	"go/token"
 )
 
+func init() {
+	register("atomic",
+		"check for common mistaken usages of the sync/atomic package",
+		checkAtomicAssignment,
+		assignStmt)
+}
+
 // checkAtomicAssignment walks the assignment statement checking for common
 // mistaken usage of atomic package, such as: x = atomic.AddUint64(&x, 1)
-func (f *File) checkAtomicAssignment(n *ast.AssignStmt) {
-	if !vet("atomic") {
-		return
-	}
-
+func checkAtomicAssignment(f *File, node ast.Node) {
+	n := node.(*ast.AssignStmt)
 	if len(n.Lhs) != len(n.Rhs) {
 		return
 	}
@@ -44,6 +48,9 @@ func (f *File) checkAtomicAssignment(n *ast.AssignStmt) {
 // checkAtomicAddAssignment walks the atomic.Add* method calls checking for assigning the return value
 // to the same variable being used in the operation
 func (f *File) checkAtomicAddAssignment(left ast.Expr, call *ast.CallExpr) {
+	if len(call.Args) != 2 {
+		return
+	}
 	arg := call.Args[0]
 	broken := false
 

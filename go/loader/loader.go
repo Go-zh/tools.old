@@ -121,6 +121,10 @@ package loader
 // - cache the calls to build.Import so we don't do it three times per
 //   test package.
 // - Thorough overhaul of package documentation.
+// - Certain errors (e.g. parse error in x_test.go files, or failure to
+//   import an initial package) still cause Load() to fail hard.
+//   Fix that.  (It's tricky because of the way x_test files are parsed
+//   eagerly.)
 
 import (
 	"errors"
@@ -186,6 +190,11 @@ type Config struct {
 
 	// If Build is non-nil, it is used to locate source packages.
 	// Otherwise &build.Default is used.
+	//
+	// By default, cgo is invoked to preprocess Go files that
+	// import the fake package "C".  This behaviour can be
+	// disabled by setting CGO_ENABLED=0 in the environment prior
+	// to startup, or by setting Build.CgoEnabled=false.
 	Build *build.Context
 
 	// If DisplayPath is non-nil, it is used to transform each
@@ -194,11 +203,11 @@ type Config struct {
 	// leaking into the user interface.
 	DisplayPath func(path string) string
 
-	// If AllowTypeErrors is true, Load will return a Program even
-	// if some of the its packages contained type errors; such
-	// errors are accessible via PackageInfo.TypeError.
-	// If false, Load will fail if any package had a type error.
-	AllowTypeErrors bool
+	// If AllowErrors is true, Load will return a Program even
+	// if some of the its packages contained I/O, parser or type
+	// errors; such errors are accessible via PackageInfo.Errors.  If
+	// false, Load will fail if any package had an error.
+	AllowErrors bool
 
 	// CreatePkgs specifies a list of non-importable initial
 	// packages to create.  Each element specifies a list of
@@ -248,6 +257,24 @@ type Program struct {
 	// dependencies, including incomplete ones.
 	AllPackages map[*types.Package]*PackageInfo
 }
+
+// PackageInfo holds the ASTs and facts derived by the type-checker
+// for a single package.
+//
+// Not mutated once exposed via the API.
+//
+type PackageInfo struct {
+	Pkg                   *types.Package
+	Importable            bool        // true if 'import "Pkg.Path()"' would resolve to this
+	TransitivelyErrorFree bool        // true if Pkg and all its dependencies are free of errors
+	Files                 []*ast.File // syntax trees for the package's files
+	Errors                []error     // non-nil if the package had errors
+	types.Info                        // type-checker deductions.
+
+	checker *types.Checker // transient type-checker state
+}
+
+func (info *PackageInfo) String() string { return info.Pkg.Path() }
 
 func (conf *Config) fset() *token.FileSet {
 	if conf.Fset == nil {
@@ -343,12 +370,13 @@ func (conf *Config) FromArgs(args []string, xtest bool) (rest []string, err erro
 // specified *.go files and adds a package entry for them to
 // conf.CreatePkgs.
 //
+// It fails if any file could not be loaded or parsed.
+//
 func (conf *Config) CreateFromFilenames(path string, filenames ...string) error {
-	files, err := parseFiles(conf.fset(), conf.build(), nil, ".", filenames, conf.ParserMode)
-	if err != nil {
-		return err
+	files, errs := parseFiles(conf.fset(), conf.build(), nil, ".", filenames, conf.ParserMode)
+	if len(errs) > 0 {
+		return errs[0]
 	}
-
 	conf.CreateFromFiles(path, files...)
 	return nil
 }
@@ -383,9 +411,15 @@ func (conf *Config) ImportWithTests(path string) error {
 	conf.Import(path)
 
 	// Load the external test package.
-	xtestFiles, err := conf.parsePackageFiles(path, 'x')
+	bp, err := conf.findSourcePackage(path)
 	if err != nil {
-		return err
+		return err // package not found
+	}
+	xtestFiles, errs := conf.parsePackageFiles(bp, 'x')
+	if len(errs) > 0 {
+		// TODO(adonovan): fix: parse errors in x_test.go files
+		// are still catastrophic to Load().
+		return errs[0] // I/O or parse error
 	}
 	if len(xtestFiles) > 0 {
 		conf.CreateFromFiles(path+"_test", xtestFiles...)
@@ -455,7 +489,7 @@ type importer struct {
 
 // importInfo tracks the success or failure of a single import.
 type importInfo struct {
-	info *PackageInfo // results of typechecking (including type errors)
+	info *PackageInfo // results of typechecking (including errors)
 	err  error        // reason for failure to make a package
 }
 
@@ -465,8 +499,10 @@ type importInfo struct {
 // On success, Load returns a Program containing a PackageInfo for
 // each package.  On failure, it returns an error.
 //
-// If conf.AllowTypeErrors is set, a type error does not cause Load to
-// fail, but is recorded in the PackageInfo.TypeError field.
+// If AllowErrors is true, Load will return a Program even if some
+// packages contained I/O, parser or type errors, or if dependencies
+// were missing.  (Such errors are accessible via PackageInfo.Errors.  If
+// false, Load will fail if any package had an error.
 //
 // It is an error if no packages were loaded.
 //
@@ -493,9 +529,7 @@ func (conf *Config) Load() (*Program, error) {
 	for path := range conf.ImportPkgs {
 		info, err := imp.importPackage(path)
 		if err != nil {
-			// TODO(adonovan): don't abort Load just
-			// because of a parse error in one package.
-			return nil, err // e.g. parse error (but not type error)
+			return nil, err // failed to create package
 		}
 		prog.Imported[path] = info
 	}
@@ -503,15 +537,17 @@ func (conf *Config) Load() (*Program, error) {
 	// Now augment those packages that need it.
 	for path, augment := range conf.ImportPkgs {
 		if augment {
-			ii := imp.imported[path]
-
 			// Find and create the actual package.
-			files, err := imp.conf.parsePackageFiles(path, 't')
-			// Prefer the earlier error, if any.
-			if err != nil && ii.err == nil {
-				ii.err = err // e.g. parse error.
+			bp, err := conf.findSourcePackage(path)
+			if err != nil {
+				// "Can't happen" because of previous loop.
+				return nil, err // package not found
 			}
-			typeCheckFiles(ii.info, files...)
+
+			info := imp.imported[path].info // must be non-nil, see above
+			files, errs := imp.conf.parsePackageFiles(bp, 't')
+			info.Errors = append(info.Errors, errs...)
+			typeCheckFiles(info, files...)
 		}
 	}
 
@@ -540,16 +576,16 @@ func (conf *Config) Load() (*Program, error) {
 		}
 	}
 
-	if !conf.AllowTypeErrors {
+	if !conf.AllowErrors {
 		// Report errors in indirectly imported packages.
 		var errpkgs []string
 		for _, info := range prog.AllPackages {
-			if info.TypeError != nil {
+			if len(info.Errors) > 0 {
 				errpkgs = append(errpkgs, info.Pkg.Path())
 			}
 		}
 		if errpkgs != nil {
-			return nil, fmt.Errorf("couldn't load packages due to type errors: %s",
+			return nil, fmt.Errorf("couldn't load packages due to errors: %s",
 				strings.Join(errpkgs, ", "))
 		}
 	}
@@ -587,7 +623,7 @@ func markErrorFreePackages(allPackages map[*types.Package]*PackageInfo) {
 		}
 	}
 	for _, info := range allPackages {
-		if info.TypeError != nil {
+		if len(info.Errors) > 0 {
 			visit(info.Pkg)
 		}
 	}
@@ -608,29 +644,28 @@ func (conf *Config) build() *build.Context {
 	return &build.Default
 }
 
+// findSourcePackage locates the specified (possibly empty) package
+// using go/build logic.  It returns an error if not found.
+//
+func (conf *Config) findSourcePackage(path string) (*build.Package, error) {
+	// Import(srcDir="") disables local imports, e.g. import "./foo".
+	bp, err := conf.build().Import(path, "", 0)
+	if _, ok := err.(*build.NoGoError); ok {
+		return bp, nil // empty directory is not an error
+	}
+	return bp, err
+}
+
 // parsePackageFiles enumerates the files belonging to package path,
-// then loads, parses and returns them.
+// then loads, parses and returns them, plus a list of I/O or parse
+// errors that were encountered.
 //
 // 'which' indicates which files to include:
-//    'g': include non-test *.go source files (GoFiles)
+//    'g': include non-test *.go source files (GoFiles + processed CgoFiles)
 //    't': include in-package *_test.go source files (TestGoFiles)
 //    'x': include external *_test.go source files. (XTestGoFiles)
 //
-func (conf *Config) parsePackageFiles(path string, which rune) ([]*ast.File, error) {
-	// Set the "!cgo" go/build tag, preferring (dummy) Go to
-	// native C implementations of net.cgoLookupHost et al.
-	ctxt := *conf.build() // copy
-	ctxt.CgoEnabled = false
-
-	// Import(srcDir="") disables local imports, e.g. import "./foo".
-	bp, err := ctxt.Import(path, "", 0)
-	if _, ok := err.(*build.NoGoError); ok {
-		return nil, nil // empty directory
-	}
-	if err != nil {
-		return nil, err // import failed
-	}
-
+func (conf *Config) parsePackageFiles(bp *build.Package, which rune) ([]*ast.File, []error) {
 	var filenames []string
 	switch which {
 	case 'g':
@@ -642,7 +677,20 @@ func (conf *Config) parsePackageFiles(path string, which rune) ([]*ast.File, err
 	default:
 		panic(which)
 	}
-	return parseFiles(conf.fset(), &ctxt, conf.DisplayPath, bp.Dir, filenames, conf.ParserMode)
+
+	files, errs := parseFiles(conf.fset(), conf.build(), conf.DisplayPath, bp.Dir, filenames, conf.ParserMode)
+
+	// Preprocess CgoFiles and parse the outputs (sequentially).
+	if which == 'g' && bp.CgoFiles != nil {
+		cgofiles, err := processCgoFiles(bp, conf.fset(), conf.DisplayPath, conf.ParserMode)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			files = append(files, cgofiles...)
+		}
+	}
+
+	return files, errs
 }
 
 // doImport imports the package denoted by path.
@@ -676,6 +724,9 @@ func (imp *importer) doImport(imports map[string]*types.Package, path string) (*
 
 // importPackage imports the package with the given import path, plus
 // its dependencies.
+//
+// On success, it returns a PackageInfo, possibly containing errors.
+// importPackage returns an error if it couldn't even create the package.
 //
 // Precondition: path != "unsafe".
 //
@@ -724,12 +775,14 @@ func (imp *importer) importFromBinary(path string) (*PackageInfo, error) {
 // located by go/build.
 //
 func (imp *importer) importFromSource(path string) (*PackageInfo, error) {
-	files, err := imp.conf.parsePackageFiles(path, 'g')
+	bp, err := imp.conf.findSourcePackage(path)
 	if err != nil {
-		return nil, err
+		return nil, err // package not found
 	}
 	// Type-check the package.
 	info := imp.newPackageInfo(path)
+	files, errs := imp.conf.parsePackageFiles(bp, 'g')
+	info.Errors = append(info.Errors, errs...)
 	typeCheckFiles(info, files...)
 	return info, nil
 }
@@ -738,29 +791,15 @@ func (imp *importer) importFromSource(path string) (*PackageInfo, error) {
 // The order of files determines the package initialization order.
 // It may be called multiple times.
 //
-// Any error is stored in the info.TypeError field.
+// Any error is stored in the info.Error field.
 func typeCheckFiles(info *PackageInfo, files ...*ast.File) {
 	info.Files = append(info.Files, files...)
-	if err := info.checker.Files(files); err != nil {
-		// Prefer the earlier error, if any.
-		if info.TypeError == nil {
-			info.TypeError = err
-		}
-	}
+
+	// Ignore the returned (first) error since we already collect them all.
+	_ = info.checker.Files(files)
 }
 
 func (imp *importer) newPackageInfo(path string) *PackageInfo {
-	// Use a copy of the types.Config so we can vary IgnoreFuncBodies.
-	tc := imp.conf.TypeChecker
-	tc.IgnoreFuncBodies = false
-	if f := imp.conf.TypeCheckFuncBodies; f != nil {
-		tc.IgnoreFuncBodies = !f(path)
-	}
-	if tc.Error == nil {
-		tc.Error = func(e error) { fmt.Fprintln(os.Stderr, e) }
-	}
-	tc.Import = imp.doImport // doImport wraps the user's importfn, effectively
-
 	pkg := types.NewPackage(path, "")
 	info := &PackageInfo{
 		Pkg: pkg,
@@ -773,6 +812,26 @@ func (imp *importer) newPackageInfo(path string) *PackageInfo {
 			Selections: make(map[*ast.SelectorExpr]*types.Selection),
 		},
 	}
+
+	// Use a copy of the types.Config so we can vary IgnoreFuncBodies.
+	tc := imp.conf.TypeChecker
+	tc.IgnoreFuncBodies = false
+	if f := imp.conf.TypeCheckFuncBodies; f != nil {
+		tc.IgnoreFuncBodies = !f(path)
+	}
+	tc.Import = imp.doImport // doImport wraps the user's importfn, effectively
+
+	// The default error reporter just prints the errors.
+	dfltError := tc.Error
+	if dfltError == nil {
+		dfltError = func(e error) { fmt.Fprintln(os.Stderr, e) }
+	}
+	// Wrap the error reporter to also collect them.
+	tc.Error = func(e error) {
+		info.Errors = append(info.Errors, e)
+		dfltError(e)
+	}
+
 	info.checker = types.NewChecker(&tc, imp.conf.fset(), pkg, &info.Info)
 	imp.prog.AllPackages[pkg] = info
 	return info

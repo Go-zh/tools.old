@@ -27,6 +27,7 @@ const (
 	NaiveForm                                    // Build naïve SSA form: don't replace local loads/stores with registers
 	BuildSerially                                // Build packages serially, not in parallel.
 	GlobalDebug                                  // Enable debug info for all packages
+	BareInits                                    // Build init functions without guards or calls to dependent inits
 )
 
 // Create returns a new SSA Program.  An SSA Package is created for
@@ -39,12 +40,12 @@ const (
 //
 func Create(iprog *loader.Program, mode BuilderMode) *Program {
 	prog := &Program{
-		Fset:                iprog.Fset,
-		imported:            make(map[string]*Package),
-		packages:            make(map[*types.Package]*Package),
-		boundMethodWrappers: make(map[*types.Func]*Function),
-		ifaceMethodWrappers: make(map[*types.Func]*Function),
-		mode:                mode,
+		Fset:     iprog.Fset,
+		imported: make(map[string]*Package),
+		packages: make(map[*types.Package]*Package),
+		thunks:   make(map[selectionKey]*Function),
+		bounds:   make(map[*types.Func]*Function),
+		mode:     mode,
 	}
 
 	for _, info := range iprog.AllPackages {
@@ -130,7 +131,7 @@ func membersFromDecl(pkg *Package, decl ast.Decl) {
 			for _, spec := range decl.Specs {
 				for _, id := range spec.(*ast.ValueSpec).Names {
 					if !isBlankIdent(id) {
-						memberFromObject(pkg, pkg.objectOf(id), nil)
+						memberFromObject(pkg, pkg.info.Defs[id], nil)
 					}
 				}
 			}
@@ -139,7 +140,7 @@ func membersFromDecl(pkg *Package, decl ast.Decl) {
 			for _, spec := range decl.Specs {
 				for _, id := range spec.(*ast.ValueSpec).Names {
 					if !isBlankIdent(id) {
-						memberFromObject(pkg, pkg.objectOf(id), spec)
+						memberFromObject(pkg, pkg.info.Defs[id], spec)
 					}
 				}
 			}
@@ -148,7 +149,7 @@ func membersFromDecl(pkg *Package, decl ast.Decl) {
 			for _, spec := range decl.Specs {
 				id := spec.(*ast.TypeSpec).Name
 				if !isBlankIdent(id) {
-					memberFromObject(pkg, pkg.objectOf(id), nil)
+					memberFromObject(pkg, pkg.info.Defs[id], nil)
 				}
 			}
 		}
@@ -159,7 +160,7 @@ func membersFromDecl(pkg *Package, decl ast.Decl) {
 			return // no object
 		}
 		if !isBlankIdent(id) {
-			memberFromObject(pkg, pkg.objectOf(id), decl)
+			memberFromObject(pkg, pkg.info.Defs[id], decl)
 		}
 	}
 }
@@ -222,13 +223,15 @@ func (prog *Program) CreatePackage(info *loader.PackageInfo) *Package {
 		}
 	}
 
-	// Add initializer guard variable.
-	initguard := &Global{
-		Pkg:  p,
-		name: "init$guard",
-		typ:  types.NewPointer(tBool),
+	if prog.mode&BareInits == 0 {
+		// Add initializer guard variable.
+		initguard := &Global{
+			Pkg:  p,
+			name: "init$guard",
+			typ:  types.NewPointer(tBool),
+		}
+		p.Members[initguard.Name()] = initguard
 	}
-	p.Members[initguard.Name()] = initguard
 
 	if prog.mode&GlobalDebug != 0 {
 		p.SetDebugMode(true)
@@ -242,10 +245,6 @@ func (prog *Program) CreatePackage(info *loader.PackageInfo) *Package {
 		prog.imported[info.Pkg.Path()] = p
 	}
 	prog.packages[p.Object] = p
-
-	if prog.mode&SanityCheckFunctions != 0 {
-		sanityCheckPackage(p)
-	}
 
 	return p
 }

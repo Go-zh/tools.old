@@ -16,25 +16,6 @@ import (
 	"code.google.com/p/go.tools/go/vcs"
 )
 
-// These variables are copied from the gobuilder's environment
-// to the envv of its subprocesses.
-var extraEnv = []string{
-	"GOARM",
-	"GO386",
-	"CGO_ENABLED",
-
-	// For Unix derivatives.
-	"CC",
-	"PATH",
-	"TMPDIR",
-	"USER",
-
-	// For Plan 9.
-	"objtype",
-	"cputype",
-	"path",
-}
-
 // builderEnv represents the environment that a Builder will run tests in.
 type builderEnv interface {
 	// setup sets up the builder environment and returns the directory to run the buildCmd in.
@@ -58,20 +39,23 @@ func (b *Builder) envv() []string {
 			"GOARCH=" + b.goarch,
 			"GOROOT_FINAL=/usr/local/go",
 		}
-		if b.goos != "nacl" {
+		switch b.goos {
+		case "android", "nacl":
+			// Cross compile.
+		default:
 			// If we are building, for example, linux/386 on a linux/amd64 machine we want to
 			// make sure that the whole build is done as a if this were compiled on a real
 			// linux/386 machine. In other words, we want to not do a cross compilation build.
 			// To do this we set GOHOSTOS and GOHOSTARCH to override the detection in make.bash.
 			//
-			// The exception to this rule is when we are doing nacl builds. These are by definition
-			// always cross compilation, and we have support built into cmd/go to be able to handle
-			// this case.
+			// The exception to this rule is when we are doing nacl/android builds. These are by
+			// definition always cross compilation, and we have support built into cmd/go to be
+			// able to handle this case.
 			e = append(e, "GOHOSTOS="+b.goos, "GOHOSTARCH="+b.goarch)
 		}
 	}
 
-	for _, k := range extraEnv {
+	for _, k := range extraEnv() {
 		if s, ok := getenvOk(k); ok {
 			e = append(e, k+"="+s)
 		}
@@ -92,7 +76,7 @@ func (b *Builder) envvWindows() []string {
 		}
 	}
 
-	for _, name := range extraEnv {
+	for _, name := range extraEnv() {
 		if s, ok := getenvOk(name); ok {
 			start[name] = s
 		}
@@ -275,4 +259,23 @@ func getenvOk(k string) (v string, ok bool) {
 		}
 	}
 	return "", false
+}
+
+// extraEnv returns environment variables that need to be copied from
+// the gobuilder's environment to the envv of its subprocesses.
+func extraEnv() []string {
+	extra := []string{
+		"GOARM",
+		"GO386",
+		"CGO_ENABLED",
+		"CC",
+		"CC_FOR_TARGET",
+		"PATH",
+		"TMPDIR",
+		"USER",
+	}
+	if runtime.GOOS == "plan9" {
+		extra = append(extra, "objtype", "cputype", "path")
+	}
+	return extra
 }

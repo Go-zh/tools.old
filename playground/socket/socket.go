@@ -22,6 +22,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -84,11 +85,17 @@ func handshake(c *websocket.Config, req *http.Request) error {
 		log.Println("bad websocket origin:", err)
 		return websocket.ErrBadWebSocketOrigin
 	}
-	ok := c.Origin.Scheme == o.Scheme && c.Origin.Host == o.Host
+	_, port, err := net.SplitHostPort(c.Origin.Host)
+	if err != nil {
+		log.Println("bad websocket origin:", err)
+		return websocket.ErrBadWebSocketOrigin
+	}
+	ok := c.Origin.Scheme == o.Scheme && (c.Origin.Host == o.Host || c.Origin.Host == net.JoinHostPort(o.Host, port))
 	if !ok {
 		log.Println("bad websocket origin:", o)
 		return websocket.ErrBadWebSocketOrigin
 	}
+	log.Println("accepting connection from:", req.RemoteAddr)
 	return nil
 }
 
@@ -130,6 +137,7 @@ func socketHandler(c *websocket.Conn) {
 		case m := <-in:
 			switch m.Kind {
 			case "run":
+				log.Println("running snippet from:", c.Request().RemoteAddr)
 				proc[m.Id].Kill()
 				lOut := limiter(in, out)
 				proc[m.Id] = startProcess(m.Id, m.Body, lOut, m.Options)
@@ -262,7 +270,14 @@ func (p *process) start(body string, opt *Options) error {
 	}
 
 	// run x
-	cmd = p.cmd("", bin)
+	if isNacl() {
+		cmd, err = p.naclCmd(bin)
+		if err != nil {
+			return err
+		}
+	} else {
+		cmd = p.cmd("", bin)
+	}
 	if opt != nil && opt.Race {
 		cmd.Env = append(cmd.Env, "GOMAXPROCS=2")
 	}
@@ -309,6 +324,51 @@ func (p *process) cmd(dir string, args ...string) *exec.Cmd {
 	cmd.Stdout = &messageWriter{id: p.id, kind: "stdout", out: p.out}
 	cmd.Stderr = &messageWriter{id: p.id, kind: "stderr", out: p.out}
 	return cmd
+}
+
+func isNacl() bool {
+	for _, v := range append(Environ(), os.Environ()...) {
+		if v == "GOOS=nacl" {
+			return true
+		}
+	}
+	return false
+}
+
+// naclCmd returns an *exec.Cmd that executes bin under native client.
+func (p *process) naclCmd(bin string) (*exec.Cmd, error) {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	var args []string
+	env := []string{
+		"NACLENV_GOOS=" + runtime.GOOS,
+		"NACLENV_GOROOT=/go",
+		"NACLENV_NACLPWD=" + strings.Replace(pwd, runtime.GOROOT(), "/go", 1),
+	}
+	switch runtime.GOARCH {
+	case "amd64":
+		env = append(env, "NACLENV_GOARCH=amd64p32")
+		args = []string{"sel_ldr_x86_64"}
+	case "386":
+		env = append(env, "NACLENV_GOARCH=386")
+		args = []string{"sel_ldr_x86_32"}
+	case "arm":
+		env = append(env, "NACLENV_GOARCH=arm")
+		selLdr, err := exec.LookPath("sel_ldr_arm")
+		if err != nil {
+			return nil, err
+		}
+		args = []string{"nacl_helper_bootstrap_arm", selLdr, "--reserved_at_zero=0xXXXXXXXXXXXXXXXX"}
+	default:
+		return nil, errors.New("native client does not support GOARCH=" + runtime.GOARCH)
+	}
+
+	cmd := p.cmd("", append(args, "-l", "/dev/null", "-S", "-e", bin)...)
+	cmd.Env = append(cmd.Env, env...)
+
+	return cmd, nil
 }
 
 func packageName(body string) (string, error) {

@@ -18,11 +18,14 @@ import (
 	"code.google.com/p/go.tools/go/types"
 )
 
-// ImportData imports a package from the serialized package data.
+// ImportData imports a package from the serialized package data
+// and returns the number of bytes consumed and a reference to the package.
 // If data is obviously malformed, an error is returned but in
 // general it is not recommended to call ImportData on untrusted
 // data.
-func ImportData(imports map[string]*types.Package, data []byte) (*types.Package, error) {
+func ImportData(imports map[string]*types.Package, data []byte) (int, *types.Package, error) {
+	datalen := len(data)
+
 	// check magic string
 	var s string
 	if len(data) >= len(magic) {
@@ -30,7 +33,7 @@ func ImportData(imports map[string]*types.Package, data []byte) (*types.Package,
 		data = data[len(magic):]
 	}
 	if s != magic {
-		return nil, fmt.Errorf("incorrect magic string: got %q; want %q", s, magic)
+		return 0, nil, fmt.Errorf("incorrect magic string: got %q; want %q", s, magic)
 	}
 
 	// check low-level encoding format
@@ -40,13 +43,13 @@ func ImportData(imports map[string]*types.Package, data []byte) (*types.Package,
 		data = data[1:]
 	}
 	if m != format() {
-		return nil, fmt.Errorf("incorrect low-level encoding format: got %c; want %c", m, format())
+		return 0, nil, fmt.Errorf("incorrect low-level encoding format: got %c; want %c", m, format())
 	}
 
 	p := importer{
-		data:     data,
-		imports:  imports,
-		consumed: len(magic) + 1, // for debugging only
+		data:    data,
+		datalen: datalen,
+		imports: imports,
 	}
 
 	// populate typList with predeclared types
@@ -55,7 +58,7 @@ func ImportData(imports map[string]*types.Package, data []byte) (*types.Package,
 	}
 
 	if v := p.string(); v != version {
-		return nil, fmt.Errorf("unknown version: got %s; want %s", v, version)
+		return 0, nil, fmt.Errorf("unknown version: got %s; want %s", v, version)
 	}
 
 	pkg := p.pkg()
@@ -69,24 +72,25 @@ func ImportData(imports map[string]*types.Package, data []byte) (*types.Package,
 		p.obj(pkg)
 	}
 
-	if len(p.data) > 0 {
-		return nil, fmt.Errorf("not all input data consumed")
+	// complete interfaces
+	for _, typ := range p.typList {
+		if it, ok := typ.(*types.Interface); ok {
+			it.Complete()
+		}
 	}
 
 	// package was imported completely and without errors
 	pkg.MarkComplete()
 
-	return pkg, nil
+	return p.consumed(), pkg, nil
 }
 
 type importer struct {
 	data    []byte
+	datalen int
 	imports map[string]*types.Package
 	pkgList []*types.Package
 	typList []types.Type
-
-	// debugging support
-	consumed int
 }
 
 func (p *importer) pkg() *types.Package {
@@ -257,8 +261,12 @@ func (p *importer) typ() types.Type {
 		return t
 
 	case interfaceTag:
-		t := new(types.Interface)
-		p.record(t)
+		// Create a dummy entry in the type list. This is safe because we
+		// cannot expect the interface type to appear in a cycle, as any
+		// such cycle must contain a named type which would have been
+		// first defined earlier.
+		n := len(p.typList)
+		p.record(nil)
 
 		// read embedded interfaces
 		embeddeds := make([]*types.Named, p.int())
@@ -273,7 +281,8 @@ func (p *importer) typ() types.Type {
 			methods[i] = types.NewFunc(token.NoPos, pkg, name, p.typ().(*types.Signature))
 		}
 
-		*t = *types.NewInterface(methods, embeddeds)
+		t := types.NewInterface(methods, embeddeds)
+		p.typList[n] = t
 		return t
 
 	case mapTag:
@@ -417,9 +426,6 @@ func (p *importer) bytes() []byte {
 	if n := int(p.rawInt64()); n > 0 {
 		b = p.data[:n]
 		p.data = p.data[n:]
-		if debug {
-			p.consumed += n
-		}
 	}
 	return b
 }
@@ -427,12 +433,11 @@ func (p *importer) bytes() []byte {
 func (p *importer) marker(want byte) {
 	if debug {
 		if got := p.data[0]; got != want {
-			panic(fmt.Sprintf("incorrect marker: got %c; want %c (pos = %d)", got, want, p.consumed))
+			panic(fmt.Sprintf("incorrect marker: got %c; want %c (pos = %d)", got, want, p.consumed()))
 		}
 		p.data = p.data[1:]
-		p.consumed++
 
-		pos := p.consumed
+		pos := p.consumed()
 		if n := int(p.rawInt64()); n != pos {
 			panic(fmt.Sprintf("incorrect position: got %d; want %d", n, pos))
 		}
@@ -443,8 +448,9 @@ func (p *importer) marker(want byte) {
 func (p *importer) rawInt64() int64 {
 	i, n := binary.Varint(p.data)
 	p.data = p.data[n:]
-	if debug {
-		p.consumed += n
-	}
 	return i
+}
+
+func (p *importer) consumed() int {
+	return p.datalen - len(p.data)
 }

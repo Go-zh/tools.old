@@ -33,6 +33,7 @@ type asmArch struct {
 	name      string
 	ptrSize   int
 	intSize   int
+	maxAlign  int
 	bigEndian bool
 }
 
@@ -55,14 +56,16 @@ type asmVar struct {
 }
 
 var (
-	asmArch386   = asmArch{"386", 4, 4, false}
-	asmArchArm   = asmArch{"arm", 4, 4, false}
-	asmArchAmd64 = asmArch{"amd64", 8, 8, false}
+	asmArch386      = asmArch{"386", 4, 4, 4, false}
+	asmArchArm      = asmArch{"arm", 4, 4, 4, false}
+	asmArchAmd64    = asmArch{"amd64", 8, 8, 8, false}
+	asmArchAmd64p32 = asmArch{"amd64p32", 4, 4, 8, false}
 
 	arches = []*asmArch{
 		&asmArch386,
 		&asmArchArm,
 		&asmArchAmd64,
+		&asmArchAmd64p32,
 	}
 )
 
@@ -234,13 +237,13 @@ func (f *File) asmParseDecl(decl *ast.FuncDecl) map[string]*asmFunc {
 				case "int32", "uint32", "float32":
 					size = 4
 				case "int64", "uint64", "float64":
-					align = arch.ptrSize
+					align = arch.maxAlign
 					size = 8
 				case "int", "uint":
 					size = arch.intSize
 				case "uintptr", "iword", "Word", "Errno", "unsafe.Pointer":
 					size = arch.ptrSize
-				case "string":
+				case "string", "ErrorString":
 					size = arch.ptrSize * 2
 					align = arch.ptrSize
 					kind = asmString
@@ -403,7 +406,7 @@ func (f *File) asmParseDecl(decl *ast.FuncDecl) map[string]*asmFunc {
 		offset = 0
 		addParams(decl.Type.Params.List)
 		if decl.Type.Results != nil && len(decl.Type.Results.List) > 0 {
-			offset += -offset & (arch.ptrSize - 1)
+			offset += -offset & (arch.maxAlign - 1)
 			addParams(decl.Type.Results.List)
 		}
 		fn.size = offset
@@ -420,7 +423,10 @@ func (f *File) asmParseDecl(decl *ast.FuncDecl) map[string]*asmFunc {
 func asmCheckVar(badf func(string, ...interface{}), fn *asmFunc, line, expr string, off int, v *asmVar) {
 	m := asmOpcode.FindStringSubmatch(line)
 	if m == nil {
-		badf("cannot find assembly opcode")
+		if !strings.HasPrefix(strings.TrimSpace(line), "//") {
+			badf("cannot find assembly opcode")
+		}
+		return
 	}
 
 	// Determine operand sizes from instruction.
@@ -438,6 +444,14 @@ func asmCheckVar(badf func(string, ...interface{}), fn *asmFunc, line, expr stri
 		src = 2
 	case "arm.MOVB", "arm.MOVBU":
 		src = 1
+	// LEA* opcodes don't really read the second arg.
+	// They just take the address of it.
+	case "386.LEAL":
+		dst = 4
+	case "amd64.LEAQ":
+		dst = 8
+	case "amd64p32.LEAL":
+		dst = 4
 	default:
 		if fn.arch.name == "386" || fn.arch.name == "amd64" {
 			if strings.HasPrefix(op, "F") && (strings.HasSuffix(op, "D") || strings.HasSuffix(op, "DP")) {

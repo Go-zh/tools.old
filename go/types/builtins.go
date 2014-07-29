@@ -18,7 +18,7 @@ import (
 // but x.expr is not set. If the call is invalid, the result is
 // false, and *x is undefined.
 //
-func (check *checker) builtin(x *operand, call *ast.CallExpr, id builtinId) (_ bool) {
+func (check *Checker) builtin(x *operand, call *ast.CallExpr, id builtinId) (_ bool) {
 	// append is the only built-in that permits the use of ... for the last argument
 	bin := predeclaredFuncs[id]
 	if call.Ellipsis.IsValid() && id != _Append {
@@ -100,7 +100,7 @@ func (check *checker) builtin(x *operand, call *ast.CallExpr, id builtinId) (_ b
 			}
 			if isString(x.typ) {
 				if check.Types != nil {
-					sig := makeSig(S, S, NewSlice(UniverseByte))
+					sig := makeSig(S, S, x.typ)
 					sig.variadic = true
 					check.recordBuiltinType(call.Fun, sig)
 				}
@@ -302,12 +302,11 @@ func (check *checker) builtin(x *operand, call *ast.CallExpr, id builtinId) (_ b
 			return
 		}
 
+		if check.Types != nil {
+			check.recordBuiltinType(call.Fun, makeSig(Typ[Int], x.typ, y.typ))
+		}
 		x.mode = value
 		x.typ = Typ[Int]
-		if check.Types != nil {
-			S := NewSlice(dst)
-			check.recordBuiltinType(call.Fun, makeSig(x.typ, S, S))
-		}
 
 	case _Delete:
 		// delete(m, k)
@@ -608,7 +607,7 @@ func unparen(x ast.Expr) ast.Expr {
 	return x
 }
 
-func (check *checker) complexArg(x *operand) bool {
+func (check *Checker) complexArg(x *operand) bool {
 	t, _ := x.typ.Underlying().(*Basic)
 	if t != nil && (t.info&IsFloat != 0 || t.kind == UntypedInt || t.kind == UntypedRune) {
 		return true

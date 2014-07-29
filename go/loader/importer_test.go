@@ -101,11 +101,16 @@ func TestLoadFromArgsSource(t *testing.T) {
 	args = []string{"testdata/a.go", "testdata/b.go"}
 	prog, _, err = loadFromArgs(args)
 	if err != nil {
-		t.Errorf("loadFromArgs(%q) failed: %s", args, err)
-		return
+		t.Fatalf("loadFromArgs(%q) failed: %s", args, err)
 	}
-	if len(prog.Created) != 1 || prog.Created[0].Pkg.Path() != "P" {
-		t.Errorf("loadFromArgs(%q): got %v, want [P]", prog.Created)
+	if len(prog.Created) != 1 {
+		t.Errorf("loadFromArgs(%q): got %d items, want 1", len(prog.Created))
+	}
+	if len(prog.Created) > 0 {
+		path := prog.Created[0].Pkg.Path()
+		if path != "P" {
+			t.Errorf("loadFromArgs(%q): got %v, want [P]", prog.Created, path)
+		}
 	}
 }
 
@@ -126,15 +131,15 @@ var justXgo = [1]os.FileInfo{fakeFileInfo{}} // ["x.go"]
 
 func TestTransitivelyErrorFreeFlag(t *testing.T) {
 	conf := loader.Config{
-		AllowTypeErrors: true,
-		SourceImports:   true,
+		AllowErrors:   true,
+		SourceImports: true,
 	}
 
 	// Create an minimal custom build.Context
 	// that fakes the following packages:
 	//
-	// a --> b --> c!   c has a TypeError
-	//   \              d and e are transitively error free.
+	// a --> b --> c!   c has an error
+	//   \              d and e are transitively error-free.
 	//    e --> d
 	//
 	// Each package [a-e] consists of one file, x.go.
@@ -179,18 +184,18 @@ func TestTransitivelyErrorFreeFlag(t *testing.T) {
 			continue
 		}
 
-		if (info.TypeError != nil) != wantErr {
+		if (info.Errors != nil) != wantErr {
 			if wantErr {
-				t.Errorf("Package %q.TypeError = nil, want error", pkg.Path())
+				t.Errorf("Package %q.Error = nil, want error", pkg.Path())
 			} else {
-				t.Errorf("Package %q has unexpected TypeError: %s",
-					pkg.Path(), info.TypeError)
+				t.Errorf("Package %q has unexpected Errors: %v",
+					pkg.Path(), info.Errors)
 			}
 		}
 
 		if info.TransitivelyErrorFree != wantTEF {
 			t.Errorf("Package %q.TransitivelyErrorFree=%t, want %t",
-				info.TransitivelyErrorFree, wantTEF)
+				pkg.Path(), info.TransitivelyErrorFree, wantTEF)
 		}
 	}
 }

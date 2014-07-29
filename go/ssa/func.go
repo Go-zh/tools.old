@@ -31,7 +31,7 @@ func (b *BasicBlock) Parent() *Function { return b.parent }
 // It is not guaranteed unique within the function.
 //
 func (b *BasicBlock) String() string {
-	return fmt.Sprintf("%d.%s", b.Index, b.Comment)
+	return fmt.Sprintf("%d", b.Index)
 }
 
 // emit appends an instruction to the current basic block.
@@ -224,7 +224,7 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 	if recv != nil {
 		for _, field := range recv.List {
 			for _, n := range field.Names {
-				f.addSpilledParam(f.Pkg.objectOf(n))
+				f.addSpilledParam(f.Pkg.info.Defs[n])
 			}
 			// Anonymous receiver?  No need to spill.
 			if field.Names == nil {
@@ -238,7 +238,7 @@ func (f *Function) createSyntacticParams(recv *ast.FieldList, functype *ast.Func
 		n := len(f.Params) // 1 if has recv, 0 otherwise
 		for _, field := range functype.Params.List {
 			for _, n := range field.Names {
-				f.addSpilledParam(f.Pkg.objectOf(n))
+				f.addSpilledParam(f.Pkg.info.Defs[n])
 			}
 			// Anonymous parameter?  No need to spill.
 			if field.Names == nil {
@@ -307,7 +307,7 @@ func (f *Function) finishBody() {
 		f.syntax = extentNode{n.Pos(), n.End()}
 	}
 
-	// Remove any f.Locals that are now heap-allocated.
+	// Remove from f.Locals any Allocs that escape to the heap.
 	j := 0
 	for _, l := range f.Locals {
 		if !l.Heap {
@@ -393,7 +393,7 @@ func (f *Function) addNamedLocal(obj types.Object) *Alloc {
 }
 
 func (f *Function) addLocalForIdent(id *ast.Ident) *Alloc {
-	return f.addNamedLocal(f.Pkg.objectOf(id))
+	return f.addNamedLocal(f.Pkg.info.Defs[id])
 }
 
 // addLocal creates an anonymous local variable of type typ, adds it
@@ -423,11 +423,11 @@ func (f *Function) lookup(obj types.Object, escaping bool) Value {
 
 	// Definition must be in an enclosing function;
 	// plumb it through intervening closures.
-	if f.Enclosing == nil {
+	if f.parent == nil {
 		panic("no Value for type.Object " + obj.Name())
 	}
-	outer := f.Enclosing.lookup(obj, true) // escaping
-	v := &Capture{
+	outer := f.parent.lookup(obj, true) // escaping
+	v := &FreeVar{
 		name:   obj.Name(),
 		typ:    outer.Type(),
 		pos:    outer.Pos(),
@@ -454,50 +454,49 @@ func (f *Function) emit(instr Instruction) Value {
 // Examples:
 //      "math.IsNaN"                // a package-level function
 //      "IsNaN"                     // intra-package reference to same
-//      "(*sync.WaitGroup).Add"     // a declared method
-//      "(*Return).Block"           // a promotion wrapper method (intra-package ref)
-//      "(Instruction).Block"       // an interface method wrapper (intra-package ref)
+//      "(*bytes.Buffer).Bytes"     // a declared method or a wrapper
+//      "(*Buffer).Bytes"           // intra-package reference to same
+//      "(*Buffer).Bytes$thunk"     // thunk (func wrapping method; receiver is param 0)
+//      "(*Buffer).Bytes$bound"     // bound (func wrapping method; receiver supplied by closure)
 //      "main$1"                    // an anonymous function
 //      "init$1"                    // a declared init function
 //      "init"                      // the synthesized package initializer
-//      "bound$(*T).f"              // a bound method wrapper
 //
 // If from==f.Pkg, suppress package qualification.
+//
 func (f *Function) RelString(from *types.Package) string {
-	// TODO(adonovan): expose less fragile case discrimination
-	// using f.method.
-
 	// Anonymous?
-	if f.Enclosing != nil {
+	if f.parent != nil {
 		return f.name
 	}
 
-	// Declared method, or promotion/indirection wrapper?
+	// Method (declared or wrapper)?
 	if recv := f.Signature.Recv(); recv != nil {
-		return fmt.Sprintf("(%s).%s", relType(recv.Type(), from), f.name)
+		return f.relMethod(from, recv.Type())
 	}
 
-	// Other synthetic wrapper?
-	if f.Synthetic != "" {
-		// Bound method wrapper?
-		if strings.HasPrefix(f.name, "bound$") {
-			return f.name
-		}
-
-		// Interface method wrapper?
-		if strings.HasPrefix(f.Synthetic, "interface ") {
-			return fmt.Sprintf("(%s).%s", relType(f.Params[0].Type(), from), f.name)
-		}
-
-		// "package initializer" or "loaded from GC object file": fall through.
+	// Thunk?
+	if f.method != nil {
+		return f.relMethod(from, f.method.Recv())
 	}
 
-	// Package-level function.
+	// Bound?
+	if len(f.FreeVars) == 1 && strings.HasSuffix(f.name, "$bound") {
+		return f.relMethod(from, f.FreeVars[0].Type())
+	}
+
+	// Package-level function?
 	// Prefix with package name for cross-package references only.
-	if p := f.pkgobj(); p != from {
+	if p := f.pkgobj(); p != nil && p != from {
 		return fmt.Sprintf("%s.%s", p.Path(), f.name)
 	}
+
+	// Unknown.
 	return f.name
+}
+
+func (f *Function) relMethod(from *types.Package, recv types.Type) string {
+	return fmt.Sprintf("(%s).%s", relType(recv, from), f.name)
 }
 
 // writeSignature writes to buf the signature sig in declaration syntax.
@@ -545,8 +544,8 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 		fmt.Fprintf(buf, "# Location: %s\n", f.Prog.Fset.Position(pos))
 	}
 
-	if f.Enclosing != nil {
-		fmt.Fprintf(buf, "# Parent: %s\n", f.Enclosing.Name())
+	if f.parent != nil {
+		fmt.Fprintf(buf, "# Parent: %s\n", f.parent.Name())
 	}
 
 	if f.Recover != nil {
@@ -575,16 +574,19 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 		buf.WriteString("\t(external)\n")
 	}
 
-	// NB. column calculations are confused by non-ASCII characters.
+	// NB. column calculations are confused by non-ASCII
+	// characters and assume 8-space tabs.
 	const punchcard = 80 // for old time's sake.
+	const tabwidth = 8
 	for _, b := range f.Blocks {
 		if b == nil {
 			// Corrupt CFG.
 			fmt.Fprintf(buf, ".nil:\n")
 			continue
 		}
-		n, _ := fmt.Fprintf(buf, ".%s:", b)
-		fmt.Fprintf(buf, "%*sP:%d S:%d\n", punchcard-1-n-len("P:n S:n"), "", len(b.Preds), len(b.Succs))
+		n, _ := fmt.Fprintf(buf, "%d:", b.Index)
+		bmsg := fmt.Sprintf("%s P:%d S:%d", b.Comment, len(b.Preds), len(b.Succs))
+		fmt.Fprintf(buf, "%*s%s\n", punchcard-1-n-len(bmsg), "", bmsg)
 
 		if false { // CFG debugging
 			fmt.Fprintf(buf, "\t# CFG: %s --> %s --> %s\n", b.Preds, b, b.Succs)
@@ -593,18 +595,23 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 			buf.WriteString("\t")
 			switch v := instr.(type) {
 			case Value:
-				l := punchcard
+				l := punchcard - tabwidth
 				// Left-align the instruction.
 				if name := v.Name(); name != "" {
 					n, _ := fmt.Fprintf(buf, "%s = ", name)
 					l -= n
 				}
-				// TODO(adonovan): append instructions directly to w.
 				n, _ := buf.WriteString(instr.String())
 				l -= n
-				// Right-align the type.
+				// Right-align the type if there's space.
 				if t := v.Type(); t != nil {
-					fmt.Fprintf(buf, " %*s", l-10, relType(t, pkgobj))
+					buf.WriteByte(' ')
+					ts := relType(t, pkgobj)
+					l -= len(ts) + len("  ") // (spaces before and after type)
+					if l > 0 {
+						fmt.Fprintf(buf, "%*s", l, "")
+					}
+					buf.WriteString(ts)
 				}
 			case nil:
 				// Be robust against bad transforms.
@@ -633,11 +640,11 @@ func (f *Function) newBasicBlock(comment string) *BasicBlock {
 	return b
 }
 
-// NewFunction returns a new synthetic Function instance with its name
-// and signature fields set as specified.
+// NewFunction returns a new synthetic Function instance belonging to
+// prog, with its name and signature fields set as specified.
 //
 // The caller is responsible for initializing the remaining fields of
-// the function object, e.g. Pkg, Prog, Params, Blocks.
+// the function object, e.g. Pkg, Params, Blocks.
 //
 // It is practically impossible for clients to construct well-formed
 // SSA functions/packages/programs directly, so we assume this is the
@@ -648,8 +655,8 @@ func (f *Function) newBasicBlock(comment string) *BasicBlock {
 //
 // TODO(adonovan): think harder about the API here.
 //
-func NewFunction(name string, sig *types.Signature, provenance string) *Function {
-	return &Function{name: name, Signature: sig, Synthetic: provenance}
+func (prog *Program) NewFunction(name string, sig *types.Signature, provenance string) *Function {
+	return &Function{Prog: prog, name: name, Signature: sig, Synthetic: provenance}
 }
 
 type extentNode [2]token.Pos

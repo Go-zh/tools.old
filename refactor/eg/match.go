@@ -105,7 +105,7 @@ func (tr *Transformer) matchExpr(x, y ast.Expr) bool {
 	case *ast.CallExpr:
 		y := y.(*ast.CallExpr)
 		match := tr.matchExpr // function call
-		if tr.info.IsType(x.Fun) {
+		if tr.info.Types[x.Fun].IsType() {
 			match = tr.matchType // type conversion
 		}
 		return x.Ellipsis.IsValid() == y.Ellipsis.IsValid() &&
@@ -217,9 +217,9 @@ func isRef(n ast.Node, info *loader.PackageInfo) types.Object {
 		return info.Uses[n]
 
 	case *ast.SelectorExpr:
-		sel := info.Selections[n]
-		if sel.Kind() == types.PackageObj {
-			return sel.Obj()
+		if _, ok := info.Selections[n]; !ok {
+			// qualified ident
+			return info.Uses[n.Sel]
 		}
 	}
 	return nil

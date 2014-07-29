@@ -103,37 +103,23 @@ func logStack(format string, args ...interface{}) func() {
 	}
 }
 
-// callsRecover reports whether f contains a direct call to recover().
-func callsRecover(f *Function) bool {
-	for _, b := range f.Blocks {
-		for _, instr := range b.Instrs {
-			if call, ok := instr.(*Call); ok {
-				if blt, ok := call.Call.Value.(*Builtin); ok {
-					if blt.Name() == "recover" {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return false
-}
-
 // newVar creates a 'var' for use in a types.Tuple.
 func newVar(name string, typ types.Type) *types.Var {
 	return types.NewParam(token.NoPos, nil, name, typ)
 }
 
-var (
-	lenObject  = types.Universe.Lookup("len").(*types.Builtin)
-	lenResults = types.NewTuple(newVar("", tInt))
-)
+// anonVar creates an anonymous 'var' for use in a types.Tuple.
+func anonVar(typ types.Type) *types.Var {
+	return newVar("", typ)
+}
+
+var lenResults = types.NewTuple(anonVar(tInt))
 
 // makeLen returns the len builtin specialized to type func(T)int.
 func makeLen(T types.Type) *Builtin {
-	lenParams := types.NewTuple(newVar("", T))
+	lenParams := types.NewTuple(anonVar(T))
 	return &Builtin{
-		object: lenObject,
-		sig:    types.NewSignature(nil, nil, lenParams, lenResults, false),
+		name: "len",
+		sig:  types.NewSignature(nil, nil, lenParams, lenResults, false),
 	}
 }

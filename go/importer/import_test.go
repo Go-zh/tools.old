@@ -61,6 +61,8 @@ var tests = []string{
 	`package p; type T chan int`,
 	`package p; type T <-chan complex64`,
 	`package p; type T chan<- map[int]string`,
+	// test case for issue 8177
+	`package p; type T1 interface { F(T2) }; type T2 interface { T1 }`,
 
 	// vars
 	`package p; var X int`,
@@ -144,9 +146,13 @@ func testExportImport(t *testing.T, pkg0 *types.Package, path string) (size, gcs
 	size = len(data)
 
 	imports := make(map[string]*types.Package)
-	pkg1, err := ImportData(imports, data)
+	n, pkg1, err := ImportData(imports, data)
 	if err != nil {
 		t.Errorf("package %s: import failed: %s", pkg0.Name(), err)
+		return
+	}
+	if n != size {
+		t.Errorf("package %s: not all input data consumed", pkg0.Name())
 		return
 	}
 

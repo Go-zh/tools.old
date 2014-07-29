@@ -7,6 +7,8 @@
 package main
 
 import (
+	"mime"
+
 	"code.google.com/p/go.tools/present"
 
 	_ "code.google.com/p/go.tools/playground"
@@ -15,8 +17,12 @@ import (
 var basePath = "./present/"
 
 func init() {
+	initTemplates(basePath)
 	playScript(basePath, "HTTPTransport")
 	present.PlayEnabled = true
+
+	// App Engine has no /etc/mime.types
+	mime.AddExtensionType(".svg", "image/svg+xml")
 }
 
 func playable(c present.Code) bool {

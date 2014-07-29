@@ -150,6 +150,14 @@ func init() {
 	if s != "Hello, 世界" {
 		panic(s)
 	}
+
+	var x int
+	for range "Hello, 世界" {
+		x++
+	}
+	if x != len(indices) {
+		panic(x)
+	}
 }
 
 func main() {
@@ -354,7 +362,7 @@ var a, b = create(1), create(2)
 
 // Initialization order of package-level value specs.
 func init() {
-	if x := fmt.Sprint(order); x != "[2 3 1]" {
+	if x := fmt.Sprint(order); x != "[1 2 3]" {
 		panic(x)
 	}
 	if c != 3 {
@@ -597,10 +605,21 @@ func init() {
 		// select to a simple receive statement.
 	}
 
+	// TODO(adonovan, gri) enable again once we accept issue 8189.
 	// value,ok-form receive where TypeOf(ok) is a named boolean.
-	type mybool bool
+	// type mybool bool
+	// var x int
+	// var y mybool
+	// select {
+	// case x, y = <-ch:
+	// default:
+	// 	// The default case disables the simplification of
+	// 	// select to a simple receive statement.
+	// }
+
+	// TODO(adonovan, gri) remove once we accept issue 8189.
 	var x int
-	var y mybool
+	var y bool
 	select {
 	case x, y = <-ch:
 	default:
@@ -635,10 +654,100 @@ func init() {
 	if got := lenCapLoHi(s[1:3:3]); got != [4]int{2, 2, 1, 2} {
 		panic(got)
 	}
+	max := 3
+	if v[2] == 42 {
+		max = 2
+	}
+	if got := lenCapLoHi(s[1:2:max]); got != [4]int{1, 1, 1, 1} {
+		panic(got)
+	}
 }
 
 // Regression test for issue 7840 (covered by SSA sanity checker).
 func bug7840() bool {
 	// This creates a single-predecessor block with a φ-node.
 	return false && a == 0 && a == 0
+}
+
+// Regression test for range of pointer to named array type.
+func init() {
+	type intarr [3]int
+	ia := intarr{1, 2, 3}
+	var count int
+	for _, x := range &ia {
+		count += x
+	}
+	if count != 6 {
+		panic(count)
+	}
+}
+
+// Test that a nice error is issue by indirection wrappers.
+func init() {
+	var ptr *T
+	var i I = ptr
+
+	defer func() {
+		r := fmt.Sprint(recover())
+		// Exact error varies by toolchain:
+		if r != "runtime error: value method (main.T).f called using nil *main.T pointer" &&
+			r != "value method main.T.f called using nil *T pointer" {
+			panic("want panic from call with nil receiver, got " + r)
+		}
+	}()
+	i.f()
+	panic("unreachable")
+}
+
+// Test for in-place initialization.
+func init() {
+	// struct
+	type S struct {
+		a, b int
+	}
+	s := S{1, 2}
+	s = S{b: 3}
+	if s.a != 0 {
+		panic("s.a != 0")
+	}
+	if s.b != 3 {
+		panic("s.b != 3")
+	}
+	s = S{}
+	if s.a != 0 {
+		panic("s.a != 0")
+	}
+	if s.b != 0 {
+		panic("s.b != 0")
+	}
+
+	// array
+	type A [4]int
+	a := A{2, 4, 6, 8}
+	a = A{1: 6, 2: 4}
+	if a[0] != 0 {
+		panic("a[0] != 0")
+	}
+	if a[1] != 6 {
+		panic("a[1] != 6")
+	}
+	if a[2] != 4 {
+		panic("a[2] != 4")
+	}
+	if a[3] != 0 {
+		panic("a[3] != 0")
+	}
+	a = A{}
+	if a[0] != 0 {
+		panic("a[0] != 0")
+	}
+	if a[1] != 0 {
+		panic("a[1] != 0")
+	}
+	if a[2] != 0 {
+		panic("a[2] != 0")
+	}
+	if a[3] != 0 {
+		panic("a[3] != 0")
+	}
 }

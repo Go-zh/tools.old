@@ -5,6 +5,7 @@
 package types_test
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -167,9 +168,15 @@ func TestTypesInfo(t *testing.T) {
 			`x.(int)`,
 			`(int, bool)`,
 		},
-		{`package p2; type mybool bool; var m map[string]complex128; var b mybool; func _() { _, b = m["foo"] }`,
+		// TODO(gri): uncomment if we accept issue 8189.
+		// {`package p2; type mybool bool; var m map[string]complex128; var b mybool; func _() { _, b = m["foo"] }`,
+		// 	`m["foo"]`,
+		// 	`(complex128, p2.mybool)`,
+		// },
+		// TODO(gri): remove if we accept issue 8189.
+		{`package p2; var m map[string]complex128; var b bool; func _() { _, b = m["foo"] }`,
 			`m["foo"]`,
-			`(complex128, p2.mybool)`,
+			`(complex128, bool)`,
 		},
 		{`package p3; var c chan string; var _, _ = <-c`,
 			`<-c`,
@@ -245,6 +252,117 @@ func TestTypesInfo(t *testing.T) {
 		// check that type is correct
 		if got := typ.String(); got != test.typ {
 			t.Errorf("package %s: got %s; want %s", name, got, test.typ)
+		}
+	}
+}
+
+func predString(tv TypeAndValue) string {
+	var buf bytes.Buffer
+	pred := func(b bool, s string) {
+		if b {
+			if buf.Len() > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(s)
+		}
+	}
+
+	pred(tv.IsVoid(), "void")
+	pred(tv.IsType(), "type")
+	pred(tv.IsBuiltin(), "builtin")
+	pred(tv.IsValue() && tv.Value != nil, "const")
+	pred(tv.IsValue() && tv.Value == nil, "value")
+	pred(tv.IsNil(), "nil")
+	pred(tv.Addressable(), "addressable")
+	pred(tv.Assignable(), "assignable")
+	pred(tv.HasOk(), "hasOk")
+
+	if buf.Len() == 0 {
+		return "invalid"
+	}
+	return buf.String()
+}
+
+func TestPredicatesInfo(t *testing.T) {
+	var tests = []struct {
+		src  string
+		expr string
+		pred string
+	}{
+		// void
+		{`package n0; func f() { f() }`, `f()`, `void`},
+
+		// types
+		{`package t0; type _ int`, `int`, `type`},
+		{`package t1; type _ []int`, `[]int`, `type`},
+		{`package t2; type _ func()`, `func()`, `type`},
+
+		// built-ins
+		{`package b0; var _ = len("")`, `len`, `builtin`},
+		{`package b1; var _ = (len)("")`, `(len)`, `builtin`},
+
+		// constants
+		{`package c0; var _ = 42`, `42`, `const`},
+		{`package c1; var _ = "foo" + "bar"`, `"foo" + "bar"`, `const`},
+		{`package c2; const (i = 1i; _ = i)`, `i`, `const`},
+
+		// values
+		{`package v0; var (a, b int; _ = a + b)`, `a + b`, `value`},
+		{`package v1; var _ = &[]int{1}`, `([]int literal)`, `value`},
+		{`package v2; var _ = func(){}`, `(func() literal)`, `value`},
+		{`package v4; func f() { _ = f }`, `f`, `value`},
+		{`package v3; var _ *int = nil`, `nil`, `value, nil`},
+		{`package v3; var _ *int = (nil)`, `(nil)`, `value, nil`},
+
+		// addressable (and thus assignable) operands
+		{`package a0; var (x int; _ = x)`, `x`, `value, addressable, assignable`},
+		{`package a1; var (p *int; _ = *p)`, `*p`, `value, addressable, assignable`},
+		{`package a2; var (s []int; _ = s[0])`, `s[0]`, `value, addressable, assignable`},
+		{`package a3; var (s struct{f int}; _ = s.f)`, `s.f`, `value, addressable, assignable`},
+		{`package a4; var (a [10]int; _ = a[0])`, `a[0]`, `value, addressable, assignable`},
+		{`package a5; func _(x int) { _ = x }`, `x`, `value, addressable, assignable`},
+		{`package a6; func _()(x int) { _ = x; return }`, `x`, `value, addressable, assignable`},
+		{`package a7; type T int; func (x T) _() { _ = x }`, `x`, `value, addressable, assignable`},
+		// composite literals are not addressable
+
+		// assignable but not addressable values
+		{`package s0; var (m map[int]int; _ = m[0])`, `m[0]`, `value, assignable, hasOk`},
+		{`package s1; var (m map[int]int; _, _ = m[0])`, `m[0]`, `value, assignable, hasOk`},
+
+		// hasOk expressions
+		{`package k0; var (ch chan int; _ = <-ch)`, `<-ch`, `value, hasOk`},
+		{`package k1; var (ch chan int; _, _ = <-ch)`, `<-ch`, `value, hasOk`},
+
+		// missing entries
+		// - package names are collected in the Uses map
+		// - identifiers being declared are collected in the Defs map
+		{`package m0; import "os"; func _() { _ = os.Stdout }`, `os`, `<missing>`},
+		{`package m1; import p "os"; func _() { _ = p.Stdout }`, `p`, `<missing>`},
+		{`package m2; const c = 0`, `c`, `<missing>`},
+		{`package m3; type T int`, `T`, `<missing>`},
+		{`package m4; var v int`, `v`, `<missing>`},
+		{`package m5; func f() {}`, `f`, `<missing>`},
+		{`package m6; func _(x int) {}`, `x`, `<missing>`},
+		{`package m6; func _()(x int) { return }`, `x`, `<missing>`},
+		{`package m6; type T int; func (x T) _() {}`, `x`, `<missing>`},
+	}
+
+	for _, test := range tests {
+		info := Info{Types: make(map[ast.Expr]TypeAndValue)}
+		name := mustTypecheck(t, "PredicatesInfo", test.src, &info)
+
+		// look for expression predicates
+		got := "<missing>"
+		for e, tv := range info.Types {
+			//println(name, ExprString(e))
+			if ExprString(e) == test.expr {
+				got = predString(tv)
+				break
+			}
+		}
+
+		if got != test.pred {
+			t.Errorf("package %s: got %s; want %s", name, got, test.pred)
 		}
 	}
 }
@@ -406,7 +524,31 @@ func TestInitOrderInfo(t *testing.T) {
 			"y = 1", "x = T.m",
 		}},
 		{`package p10; var (d = c + b; a = 0; b = 0; c = 0)`, []string{
-			"b = 0", "c = 0", "d = c + b", "a = 0",
+			"a = 0", "b = 0", "c = 0", "d = c + b",
+		}},
+		{`package p11; var (a = e + c; b = d + c; c = 0; d = 0; e = 0)`, []string{
+			"c = 0", "d = 0", "b = d + c", "e = 0", "a = e + c",
+		}},
+		// emit an initializer for n:1 initializations only once (not for each node
+		// on the lhs which may appear in different order in the dependency graph)
+		{`package p12; var (a = x; b = 0; x, y = m[0]; m map[int]int)`, []string{
+			"b = 0", "x, y = m[0]", "a = x",
+		}},
+		// test case from spec section on package initialization
+		{`package p12
+
+		var (
+			a = c + b
+			b = f()
+			c = f()
+			d = 3
+		)
+
+		func f() int {
+			d++
+			return d
+		}`, []string{
+			"d = 3", "b = f()", "c = f()", "a = c + b",
 		}},
 		// test case for issue 7131
 		{`package main
@@ -449,14 +591,16 @@ func TestInitOrderInfo(t *testing.T) {
 func TestFiles(t *testing.T) {
 	var sources = []string{
 		"package p; type T struct{}; func (T) m1() {}",
-		"package p; func (T) m2() {}; var _ interface{ m1(); m2() } = T{}",
-		"package p; func (T) m3() {}; var _ interface{ m1(); m2(); m3() } = T{}",
+		"package p; func (T) m2() {}; var x interface{ m1(); m2() } = T{}",
+		"package p; func (T) m3() {}; var y interface{ m1(); m2(); m3() } = T{}",
+		"package p",
 	}
 
 	var conf Config
 	fset := token.NewFileSet()
 	pkg := NewPackage("p", "p")
-	check := NewChecker(&conf, fset, pkg, nil)
+	var info Info
+	check := NewChecker(&conf, fset, pkg, &info)
 
 	for i, src := range sources {
 		filename := fmt.Sprintf("sources%d", i)
@@ -467,6 +611,17 @@ func TestFiles(t *testing.T) {
 		if err := check.Files([]*ast.File{f}); err != nil {
 			t.Error(err)
 		}
+	}
+
+	// check InitOrder is [x y]
+	var vars []string
+	for _, init := range info.InitOrder {
+		for _, v := range init.Lhs {
+			vars = append(vars, v.Name())
+		}
+	}
+	if got, want := fmt.Sprint(vars), "[x y]"; got != want {
+		t.Errorf("InitOrder == %s, want %s", got, want)
 	}
 }
 

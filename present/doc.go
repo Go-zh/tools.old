@@ -61,6 +61,7 @@ After that come slides/sections, each after a blank line:
 	.iframe http://foo
 	.link http://foo label
 	.html file.html
+	.caption _Gopher_ by [[http://www.reneefrench.com][Renée French]]
 
 	Again, more text
 
@@ -168,9 +169,23 @@ The template uses the function "image" to inject picture files.
 The syntax is simple: 1 or 3 space-separated arguments.
 The first argument is always the file name.
 If there are more arguments, they are the height and width;
-both must be present.
+both must be present, or substituted with an underscore.
+Replacing a dimension argument with the underscore parameter
+preserves the aspect ratio of the image when scaling.
 
 	.image images/betsy.jpg 100 200
+
+	.image images/janet.jpg _ 300
+
+
+caption:
+
+The template uses the function "caption" to inject figure captions.
+
+The text after ".caption" is embedded in a figcaption element after
+processing styling and links as in standard text lines.
+
+	.caption _Gopher_ by [[http://www.reneefrench.com][Renée French]]
 
 iframe:
 

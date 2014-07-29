@@ -489,7 +489,7 @@ func callSSA(i *interpreter, caller *frame, callpos token.Pos, fn *ssa.Function,
 		caller: caller, // for panic/recover
 		fn:     fn,
 	}
-	if fn.Enclosing == nil {
+	if fn.Parent() == nil {
 		name := fn.String()
 		if ext := externals[name]; ext != nil {
 			if i.mode&EnableTracing != 0 {
@@ -555,9 +555,6 @@ func runFrame(fr *frame) {
 		}
 		fr.runDefers()
 		fr.block = fr.fn.Recover
-		if fr.block == nil {
-			fr.result = zero(fr.fn.Signature.Results())
-		}
 	}()
 
 	for {

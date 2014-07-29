@@ -16,11 +16,12 @@ import (
 var (
 	changedOnly = flag.Bool("changed", false, "show only benchmarks that have changed")
 	magSort     = flag.Bool("mag", false, "sort benchmarks by magnitude of change")
+	best        = flag.Bool("best", false, "compare best times from old and new")
 )
 
 const usageFooter = `
 Each input file should be from:
-	go test -test.run=NONE -test.bench=. > [old,new].txt
+	go test -run=NONE -bench=. > [old,new].txt
 
 Benchcmp compares old and new for each benchmark.
 
@@ -70,10 +71,10 @@ func main() {
 		}
 		if delta := cmp.DeltaNsOp(); !*changedOnly || delta.Changed() {
 			if !header {
-				fmt.Fprintf(w, "benchmark\told ns/op\tnew ns/op\tdelta\t\n")
+				fmt.Fprint(w, "benchmark\told ns/op\tnew ns/op\tdelta\n")
 				header = true
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t\n", cmp.Name(), formatNs(cmp.Before.NsOp), formatNs(cmp.After.NsOp), delta.Percent())
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", cmp.Name(), formatNs(cmp.Before.NsOp), formatNs(cmp.After.NsOp), delta.Percent())
 		}
 	}
 
@@ -87,10 +88,10 @@ func main() {
 		}
 		if delta := cmp.DeltaMbS(); !*changedOnly || delta.Changed() {
 			if !header {
-				fmt.Fprintf(w, "\nbenchmark\told MB/s\tnew MB/s\tspeedup\t\n")
+				fmt.Fprint(w, "\nbenchmark\told MB/s\tnew MB/s\tspeedup\n")
 				header = true
 			}
-			fmt.Fprintf(w, "%s\t%.2f\t%.2f\t%s\t\n", cmp.Name(), cmp.Before.MbS, cmp.After.MbS, delta.Multiple())
+			fmt.Fprintf(w, "%s\t%.2f\t%.2f\t%s\n", cmp.Name(), cmp.Before.MbS, cmp.After.MbS, delta.Multiple())
 		}
 	}
 
@@ -104,10 +105,10 @@ func main() {
 		}
 		if delta := cmp.DeltaAllocsOp(); !*changedOnly || delta.Changed() {
 			if !header {
-				fmt.Fprintf(w, "\nbenchmark\told allocs\tnew allocs\tdelta\t\n")
+				fmt.Fprint(w, "\nbenchmark\told allocs\tnew allocs\tdelta\n")
 				header = true
 			}
-			fmt.Fprintf(w, "%s\t%d\t%d\t%s\t\n", cmp.Name(), cmp.Before.AllocsOp, cmp.After.AllocsOp, delta.Percent())
+			fmt.Fprintf(w, "%s\t%d\t%d\t%s\n", cmp.Name(), cmp.Before.AllocsOp, cmp.After.AllocsOp, delta.Percent())
 		}
 	}
 
@@ -121,10 +122,10 @@ func main() {
 		}
 		if delta := cmp.DeltaBOp(); !*changedOnly || delta.Changed() {
 			if !header {
-				fmt.Fprintf(w, "\nbenchmark\told bytes\tnew bytes\tdelta\t\n")
+				fmt.Fprint(w, "\nbenchmark\told bytes\tnew bytes\tdelta\n")
 				header = true
 			}
-			fmt.Fprintf(w, "%s\t%d\t%d\t%s\t\n", cmp.Name(), cmp.Before.BOp, cmp.After.BOp, cmp.DeltaBOp().Percent())
+			fmt.Fprintf(w, "%s\t%d\t%d\t%s\n", cmp.Name(), cmp.Before.BOp, cmp.After.BOp, cmp.DeltaBOp().Percent())
 		}
 	}
 }

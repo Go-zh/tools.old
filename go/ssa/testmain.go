@@ -14,9 +14,14 @@ import (
 	"os"
 	"strings"
 
-	"code.google.com/p/go.tools/go/exact"
 	"code.google.com/p/go.tools/go/types"
 )
+
+// If non-nil, testMainStartBodyHook is called immediately after
+// startBody for main.init and main.main, making it easy for users to
+// add custom imports and initialization steps for proprietary build
+// systems that don't exactly follow 'go test' conventions.
+var testMainStartBodyHook func(*Function)
 
 // CreateTestMainPackage creates and returns a synthetic "main"
 // package that runs all the tests of the supplied packages, similar
@@ -44,6 +49,11 @@ func (prog *Program) CreateTestMainPackage(pkgs ...*Package) *Package {
 		Prog:      prog,
 	}
 	init.startBody()
+
+	if testMainStartBodyHook != nil {
+		testMainStartBodyHook(init)
+	}
+
 	// TODO(adonovan): use lexical order.
 	var expfuncs []*Function // all exported functions of *_test.go in pkgs, unordered
 	for _, pkg := range pkgs {
@@ -104,7 +114,7 @@ func (prog *Program) CreateTestMainPackage(pkgs ...*Package) *Package {
 		name:      "matcher",
 		Signature: testingMainParams.At(0).Type().(*types.Signature),
 		Synthetic: "test matcher predicate",
-		Enclosing: main,
+		parent:    main,
 		Pkg:       testmain,
 		Prog:      prog,
 	}
@@ -114,6 +124,11 @@ func (prog *Program) CreateTestMainPackage(pkgs ...*Package) *Package {
 	matcher.finishBody()
 
 	main.startBody()
+
+	if testMainStartBodyHook != nil {
+		testMainStartBodyHook(main)
+	}
+
 	var c Call
 	c.Call.Value = testingMain
 
@@ -167,7 +182,6 @@ func testMainSlice(fn *Function, expfuncs []*Function, prefix string, slice type
 		return nilConst(slice)
 	}
 
-	tString := types.Typ[types.String]
 	tPtrString := types.NewPointer(tString)
 	tPtrElem := types.NewPointer(tElem)
 	tPtrFunc := types.NewPointer(tFunc)
@@ -188,7 +202,7 @@ func testMainSlice(fn *Function, expfuncs []*Function, prefix string, slice type
 		pname := fn.emit(fa)
 
 		// Emit: *pname = "testfunc"
-		emitStore(fn, pname, NewConst(exact.MakeString(testfunc.Name()), tString))
+		emitStore(fn, pname, stringConst(testfunc.Name()))
 
 		// Emit: pfunc = &pitem.F
 		fa = &FieldAddr{X: pitem, Field: 1} // .F
