@@ -11,9 +11,9 @@
 -->
 {{with .PDoc}}
 	<script type='text/javascript'>
-        document.ANALYSIS_DATA = {{$.AnalysisData}};
-        document.CALLGRAPH = {{$.CallGraph}};
-        </script>
+	document.ANALYSIS_DATA = {{$.AnalysisData}};
+	document.CALLGRAPH = {{$.CallGraph}};
+	</script>
 
 	{{if $.IsMain}}
 		{{/* command documentation */}}
@@ -147,39 +147,61 @@
 
 		<div id="pkg-callgraph" class="toggle" style="display: none">
 		<div class="collapsed">
+<!--
 			<h2 class="toggleButton" title="Click to show Internal Call Graph section">Internal call graph ▹</h2>
+-->
+			<h2 class="toggleButton" title="点此显示内部调用图">内部调用图 ▹</h2>
 		</div> <!-- .expanded -->
 		<div class="expanded">
+<!--
 			<h2 class="toggleButton" title="Click to hide Internal Call Graph section">Internal call graph ▾</h2>
-                        <p>
-                          In the call graph viewer below, each node
-                          is a function belonging to this package
-                          and its children are the functions it
-                          calls&mdash;perhaps dynamically.
-                        </p>
-                        <p>
-                          The root nodes are the entry points of the
-                          package: functions that may be called from
-                          outside the package.  
-                          There may be non-exported or anonymous
-                          functions among them if they are called
-                          dynamically from another package.
-                        </p>
-                        <p>
-                          Click a node to visit that function's source code.
-                          From there you can visit its callers by
-                          clicking its declaring <code>func</code>
-                          token.
-                        </p>
-                        <p>
-                          Functions may be omitted if they were
-                          determined to be unreachable in the
-                          particular programs or tests that were
-                          analyzed.
-                        </p>
-                        <!-- Zero means show all package entry points. -->
-                        <ul style="margin-left: 0.5in" id="callgraph-0" class="treeview"></ul>
-                        </script>                        
+-->
+			<h2 class="toggleButton" title="点此隐藏内部调用图">内部调用图 ▾</h2>
+<!--
+			<p>
+			  In the call graph viewer below, each node
+			  is a function belonging to this package
+			  and its children are the functions it
+			  calls&mdash;perhaps dynamically.
+			</p>
+			<p>
+			  The root nodes are the entry points of the
+			  package: functions that may be called from
+			  outside the package.
+			  There may be non-exported or anonymous
+			  functions among them if they are called
+			  dynamically from another package.
+			</p>
+			<p>
+			  Click a node to visit that function's source code.
+			  From there you can visit its callers by
+			  clicking its declaring <code>func</code>
+			  token.
+			</p>
+			<p>
+			  Functions may be omitted if they were
+			  determined to be unreachable in the
+			  particular programs or tests that were
+			  analyzed.
+			</p>
+-->
+			<p>
+			在上面的调用图查看器中，每一个节点都是个属于此包的函数，其子节点为
+			它所调用的函数&mdash;或许是动态的。
+			</p>
+			<p>
+			根节点即为包的入口点：函数可从包的外部调用。若这些函数被其它包动态地调用，
+			那么它们可以是未导出或匿名的。
+			</p>
+			<p>
+			点击一个节点来查看该函数的源码。在源码中，可以点击它的 <code>func</code>
+			声明标记来查看其调用者。
+			</p>
+			<p>
+			若函数在被分析的特定程序或测试中被限定为无法访问，那么它就会被忽略。
+			</p>
+			<!-- Zero means show all package entry points. -->
+			<ul style="margin-left: 0.5in" id="callgraph-0" class="treeview"></ul>
 		</div>
 		</div> <!-- #pkg-callgraph -->
 
@@ -240,7 +262,7 @@
 				<pre>{{node_html $ .Decl true}}</pre>
 				{{comment_html .Doc}}
 				{{example_html $ .Name}}
-			        {{callgraph_html $ "" .Name}}
+				{{callgraph_html $ "" .Name}}
 			{{end}}
 
 			{{range .Methods}}
@@ -250,7 +272,7 @@
 				{{comment_html .Doc}}
 				{{$name := printf "%s_%s" $tname .Name}}
 				{{example_html $ $name}}
-			        {{callgraph_html $ .Recv .Name}}
+				{{callgraph_html $ .Recv .Name}}
 			{{end}}
 		{{end}}
 	{{end}}
