@@ -338,8 +338,10 @@ func (f *Function) finishBody() {
 
 	numberRegisters(f)
 
-	if f.Prog.mode&LogFunctions != 0 {
-		f.WriteTo(os.Stderr)
+	if f.Prog.mode&PrintFunctions != 0 {
+		printMu.Lock()
+		f.WriteTo(os.Stdout)
+		printMu.Unlock()
 	}
 
 	if f.Prog.mode&SanityCheckFunctions != 0 {
@@ -439,9 +441,7 @@ func (f *Function) lookup(obj types.Object, escaping bool) Value {
 	return v
 }
 
-// emit emits the specified instruction to function f, updating the
-// control-flow graph if required.
-//
+// emit emits the specified instruction to function f.
 func (f *Function) emit(instr Instruction) Value {
 	return f.currentBlock.emit(instr)
 }
@@ -452,22 +452,33 @@ func (f *Function) emit(instr Instruction) Value {
 // The specific formatting rules are not guaranteed and may change.
 //
 // Examples:
-//      "math.IsNaN"                // a package-level function
-//      "IsNaN"                     // intra-package reference to same
-//      "(*bytes.Buffer).Bytes"     // a declared method or a wrapper
-//      "(*Buffer).Bytes"           // intra-package reference to same
-//      "(*Buffer).Bytes$thunk"     // thunk (func wrapping method; receiver is param 0)
-//      "(*Buffer).Bytes$bound"     // bound (func wrapping method; receiver supplied by closure)
-//      "main$1"                    // an anonymous function
-//      "init$1"                    // a declared init function
-//      "init"                      // the synthesized package initializer
+//      "math.IsNaN"                  // a package-level function
+//      "(*bytes.Buffer).Bytes"       // a declared method or a wrapper
+//      "(*bytes.Buffer).Bytes$thunk" // thunk (func wrapping method; receiver is param 0)
+//      "(*bytes.Buffer).Bytes$bound" // bound (func wrapping method; receiver supplied by closure)
+//      "main.main$1"                 // an anonymous function in main
+//      "main.init#1"                 // a declared init function
+//      "main.init"                   // the synthesized package initializer
 //
-// If from==f.Pkg, suppress package qualification.
+// When these functions are referred to from within the same package
+// (i.e. from == f.Pkg.Object), they are rendered without the package path.
+// For example: "IsNaN", "(*Buffer).Bytes", etc.
+//
+// Invariant: all non-synthetic functions have distinct package-qualified names.
 //
 func (f *Function) RelString(from *types.Package) string {
 	// Anonymous?
 	if f.parent != nil {
-		return f.name
+		// An anonymous function's Name() looks like "parentName$1",
+		// but its String() should include the type/package/etc.
+		parent := f.parent.RelString(from)
+		for i, anon := range f.parent.AnonFuncs {
+			if anon == f {
+				return fmt.Sprintf("%s$%d", parent, 1+i)
+			}
+		}
+
+		return f.name // should never happen
 	}
 
 	// Method (declared or wrapper)?
@@ -500,7 +511,7 @@ func (f *Function) relMethod(from *types.Package, recv types.Type) string {
 }
 
 // writeSignature writes to buf the signature sig in declaration syntax.
-func writeSignature(buf *bytes.Buffer, pkg *types.Package, name string, sig *types.Signature, params []*Parameter) {
+func writeSignature(buf *bytes.Buffer, from *types.Package, name string, sig *types.Signature, params []*Parameter) {
 	buf.WriteString("func ")
 	if recv := sig.Recv(); recv != nil {
 		buf.WriteString("(")
@@ -508,11 +519,11 @@ func writeSignature(buf *bytes.Buffer, pkg *types.Package, name string, sig *typ
 			buf.WriteString(n)
 			buf.WriteString(" ")
 		}
-		buf.WriteString(relType(params[0].Type(), pkg))
+		types.WriteType(buf, from, params[0].Type())
 		buf.WriteString(") ")
 	}
 	buf.WriteString(name)
-	types.WriteSignature(buf, pkg, sig)
+	types.WriteSignature(buf, from, sig)
 }
 
 func (f *Function) pkgobj() *types.Package {
@@ -552,22 +563,22 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 		fmt.Fprintf(buf, "# Recover: %s\n", f.Recover)
 	}
 
-	pkgobj := f.pkgobj()
+	from := f.pkgobj()
 
 	if f.FreeVars != nil {
 		buf.WriteString("# Free variables:\n")
 		for i, fv := range f.FreeVars {
-			fmt.Fprintf(buf, "# % 3d:\t%s %s\n", i, fv.Name(), relType(fv.Type(), pkgobj))
+			fmt.Fprintf(buf, "# % 3d:\t%s %s\n", i, fv.Name(), relType(fv.Type(), from))
 		}
 	}
 
 	if len(f.Locals) > 0 {
 		buf.WriteString("# Locals:\n")
 		for i, l := range f.Locals {
-			fmt.Fprintf(buf, "# % 3d:\t%s %s\n", i, l.Name(), relType(deref(l.Type()), pkgobj))
+			fmt.Fprintf(buf, "# % 3d:\t%s %s\n", i, l.Name(), relType(deref(l.Type()), from))
 		}
 	}
-	writeSignature(buf, pkgobj, f.Name(), f.Signature, f.Params)
+	writeSignature(buf, from, f.Name(), f.Signature, f.Params)
 	buf.WriteString(":\n")
 
 	if f.Blocks == nil {
@@ -606,7 +617,7 @@ func WriteFunction(buf *bytes.Buffer, f *Function) {
 				// Right-align the type if there's space.
 				if t := v.Type(); t != nil {
 					buf.WriteByte(' ')
-					ts := relType(t, pkgobj)
+					ts := relType(t, from)
 					l -= len(ts) + len("  ") // (spaces before and after type)
 					if l > 0 {
 						fmt.Fprintf(buf, "%*s", l, "")

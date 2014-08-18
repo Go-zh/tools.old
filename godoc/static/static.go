@@ -2506,6 +2506,9 @@ function PlaygroundOutput(el) {
           run();
           e.preventDefault();
           return false;
+        } if (e.ctrlKey) { // +control
+          fmt();
+          e.preventDefault();
         } else {
           autoindent(e.target);
         }
