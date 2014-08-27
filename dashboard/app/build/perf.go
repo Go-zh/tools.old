@@ -114,14 +114,12 @@ func (rc *PerfResultCache) Next(commitNum int) (*PerfResult, error) {
 			}
 		}
 	}
-	//rc.c.Errorf("PerfResultCache.Next: num=%v next=%v", commitNum, next)
 	if next != -1 {
 		return rc.results[next], nil
 	}
 	// Fetch next result from datastore.
 	res := new(PerfResult)
 	_, err := rc.iter.Next(res)
-	//rc.c.Errorf("PerfResultCache.Next: fetched %v %+v", err, res)
 	if err == datastore.Done {
 		return nil, nil
 	}
@@ -178,12 +176,12 @@ func (rc *PerfResultCache) NextForComparison(commitNum int, builder string) (*Pe
 }
 
 type PerfChange struct {
-	builder string
-	bench   string
-	metric  string
-	old     uint64
-	new     uint64
-	diff    float64
+	Builder string
+	Bench   string
+	Metric  string
+	Old     uint64
+	New     uint64
+	Diff    float64
 }
 
 func significantPerfChanges(pc *PerfConfig, builder string, prevRes, res *PerfResult) (changes []*PerfChange) {
@@ -212,31 +210,34 @@ func significantPerfChanges(pc *PerfConfig, builder string, prevRes, res *PerfRe
 				if isNoise(diff, noise) {
 					continue
 				}
-				ch := &PerfChange{builder: builder, bench: benchmark, metric: metric, old: val0, new: val, diff: diff}
+				ch := &PerfChange{Builder: builder, Bench: benchmark, Metric: metric, Old: val0, New: val, Diff: diff}
 				changes = append(changes, ch)
 			}
 		}
 	}
 	// Then, strip non-repeatable changes (flakes).
-	// The hypothesis is that a real change must show up with at least
-	// 2 different values of GOMAXPROCS.
+	// The hypothesis is that a real change must show up with the majority of GOMAXPROCS values.
+	majority := len(pc.ProcList(builder))/2 + 1
 	cnt := make(map[string]int)
 	for _, ch := range changes {
-		b, _ := splitBench(ch.bench)
-		name := b + "|" + ch.metric
-		inc := 1
-		if ch.diff < 0 {
-			inc = -1
+		b, _ := splitBench(ch.Bench)
+		name := b + "|" + ch.Metric
+		if ch.Diff < 0 {
+			name += "--"
 		}
-		cnt[name] = cnt[name] + inc
+		cnt[name] = cnt[name] + 1
 	}
 	for i := 0; i < len(changes); i++ {
 		ch := changes[i]
-		b, _ := splitBench(ch.bench)
-		name := b + "|" + ch.metric
-		if n := cnt[name]; n <= -2 || n >= 2 {
+		b, _ := splitBench(ch.Bench)
+		name := b + "|" + ch.Metric
+		if cnt[name] >= majority {
 			continue
 		}
+		if cnt[name+"--"] >= majority {
+			continue
+		}
+		// Remove flake.
 		last := len(changes) - 1
 		changes[i] = changes[last]
 		changes = changes[:last]
