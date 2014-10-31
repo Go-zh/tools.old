@@ -78,6 +78,7 @@ func init() {
 		"math.Ldexp":                       ext۰math۰Ldexp,
 		"math.Log":                         ext۰math۰Log,
 		"math.Min":                         ext۰math۰Min,
+		"os.runtime_args":                  ext۰os۰runtime_args,
 		"reflect.New":                      ext۰reflect۰New,
 		"reflect.TypeOf":                   ext۰reflect۰TypeOf,
 		"reflect.ValueOf":                  ext۰reflect۰ValueOf,
@@ -91,12 +92,14 @@ func init() {
 		"runtime.GOMAXPROCS":               ext۰runtime۰GOMAXPROCS,
 		"runtime.Goexit":                   ext۰runtime۰Goexit,
 		"runtime.Gosched":                  ext۰runtime۰Gosched,
+		"runtime.init":                     ext۰runtime۰init,
 		"runtime.NumCPU":                   ext۰runtime۰NumCPU,
 		"runtime.ReadMemStats":             ext۰runtime۰ReadMemStats,
 		"runtime.SetFinalizer":             ext۰runtime۰SetFinalizer,
 		"(*runtime.Func).Entry":            ext۰runtime۰Func۰Entry,
 		"(*runtime.Func).FileLine":         ext۰runtime۰Func۰FileLine,
 		"(*runtime.Func).Name":             ext۰runtime۰Func۰Name,
+		"runtime.environ":                  ext۰runtime۰environ,
 		"runtime.getgoroot":                ext۰runtime۰getgoroot,
 		"strings.IndexByte":                ext۰strings۰IndexByte,
 		"sync.runtime_Semacquire":          ext۰sync۰runtime_Semacquire,
@@ -125,6 +128,7 @@ func init() {
 		"syscall.ReadDirent":               ext۰syscall۰ReadDirent,
 		"syscall.Stat":                     ext۰syscall۰Stat,
 		"syscall.Write":                    ext۰syscall۰Write,
+		"syscall.runtime_envs":             ext۰runtime۰environ,
 		"time.Sleep":                       ext۰time۰Sleep,
 		"time.now":                         ext۰time۰now,
 	}
@@ -140,7 +144,7 @@ func wrapError(err error) value {
 
 func ext۰sync۰Pool۰Get(fr *frame, args []value) value {
 	Pool := fr.i.prog.ImportedPackage("sync").Type("Pool").Object()
-	_, newIndex, _ := types.LookupFieldOrMethod(Pool.Type(), Pool.Pkg(), "New")
+	_, newIndex, _ := types.LookupFieldOrMethod(Pool.Type(), false, Pool.Pkg(), "New")
 
 	if New := (*args[0].(*value)).(structure)[newIndex[0]]; New != nil {
 		return call(fr.i, fr, 0, New, nil)
@@ -219,6 +223,10 @@ func ext۰math۰Log(fr *frame, args []value) value {
 	return math.Log(args[0].(float64))
 }
 
+func ext۰os۰runtime_args(fr *frame, args []value) value {
+	return fr.i.osArgs
+}
+
 func ext۰runtime۰Breakpoint(fr *frame, args []value) value {
 	runtime.Breakpoint()
 	return nil
@@ -278,6 +286,11 @@ func ext۰runtime۰FuncForPC(fr *frame, args []value) value {
 	return &Func
 }
 
+func ext۰runtime۰environ(fr *frame, args []value) value {
+	// This function also implements syscall.runtime_envs.
+	return environ
+}
+
 func ext۰runtime۰getgoroot(fr *frame, args []value) value {
 	return os.Getenv("GOROOT")
 }
@@ -330,6 +343,10 @@ func ext۰runtime۰GC(fr *frame, args []value) value {
 
 func ext۰runtime۰Gosched(fr *frame, args []value) value {
 	runtime.Gosched()
+	return nil
+}
+
+func ext۰runtime۰init(fr *frame, args []value) value {
 	return nil
 }
 

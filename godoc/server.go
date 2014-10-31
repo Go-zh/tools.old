@@ -36,9 +36,10 @@ import (
 // This should probably merge into something else.
 type handlerServer struct {
 	p       *Presentation
-	c       *Corpus // copy of p.Corpus
-	pattern string  // url pattern; e.g. "/pkg/"
-	fsRoot  string  // file system root to which the pattern is mapped
+	c       *Corpus  // copy of p.Corpus
+	pattern string   // url pattern; e.g. "/pkg/"
+	fsRoot  string   // file system root to which the pattern is mapped; e.g. "/src"
+	exclude []string // file system paths to exclude; e.g. "/src/cmd"
 }
 
 func (s *handlerServer) registerWithMux(mux *http.ServeMux) {
@@ -66,7 +67,14 @@ func (h *handlerServer) GetPageInfo(abspath, relpath string, mode PageInfoMode) 
 	ctxt := build.Default
 	ctxt.IsAbsPath = pathpkg.IsAbs
 	ctxt.ReadDir = func(dir string) ([]os.FileInfo, error) {
-		return h.c.fs.ReadDir(filepath.ToSlash(dir))
+		f, err := h.c.fs.ReadDir(filepath.ToSlash(dir))
+		filtered := make([]os.FileInfo, 0, len(f))
+		for _, i := range f {
+			if mode&NoFiltering != 0 || i.Name() != "internal" {
+				filtered = append(filtered, i)
+			}
+		}
+		return filtered, err
 	}
 	ctxt.OpenFile = func(name string) (r io.ReadCloser, err error) {
 		data, err := vfs.ReadFile(h.c.fs, filepath.ToSlash(name))
@@ -188,11 +196,33 @@ func (h *handlerServer) GetPageInfo(abspath, relpath string, mode PageInfoMode) 
 		dir = h.c.newDirectory(abspath, 1)
 		timestamp = time.Now()
 	}
-	info.Dirs = dir.listing(true)
+	info.Dirs = dir.listing(true, func(path string) bool { return h.includePath(path, mode) })
 	info.DirTime = timestamp
 	info.DirFlat = mode&FlatDir != 0
 
 	return info
+}
+
+func (h *handlerServer) includePath(path string, mode PageInfoMode) (r bool) {
+	// if the path is under one of the exclusion paths, don't list.
+	for _, e := range h.exclude {
+		if strings.HasPrefix(path, e) {
+			return false
+		}
+	}
+
+	// if the path includes 'internal', don't list unless we are in the NoFiltering mode.
+	if mode&NoFiltering != 0 {
+		return true
+	}
+	if strings.Contains(path, "internal") {
+		for _, c := range strings.Split(filepath.Clean(path), string(os.PathSeparator)) {
+			if c == "internal" {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 type funcsByName []*doc.Func
@@ -253,7 +283,7 @@ func (h *handlerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// special cases for top-level package/command directories
 	switch tabtitle {
-	case "/src/pkg":
+	case "/src":
 		title = "Packages"
 		tabtitle = "Packages"
 	case "/src/cmd":
@@ -262,7 +292,6 @@ func (h *handlerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Emit JSON array for type information.
-	// TODO(adonovan): display the h.c.Analysis.Status() message in the UI.
 	pi := h.c.Analysis.PackageInfo(relpath)
 	info.CallGraphIndex = pi.CallGraphIndex
 	info.CallGraph = htmltemplate.JS(marshalJSON(pi.CallGraph))
@@ -501,7 +530,7 @@ func (p *Presentation) serveTextFile(w http.ResponseWriter, r *http.Request, abs
 
 	var buf bytes.Buffer
 	if pathpkg.Ext(abspath) == ".go" {
-		// Find markup links for this file (e.g. "/src/pkg/fmt/print.go").
+		// Find markup links for this file (e.g. "/src/fmt/print.go").
 		fi := p.Corpus.Analysis.FileInfo(abspath)
 		buf.WriteString("<script type='text/javascript'>document.ANALYSIS_DATA = ")
 		buf.Write(marshalJSON(fi.Data))

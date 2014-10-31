@@ -9,6 +9,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -73,9 +74,10 @@ func (r *Repo) Export(path, rev string) error {
 		return err
 	}
 
-	args := []string{r.Master.VCS.Cmd, "archive", "-t", "files", "-r", rev, path}
-	if err := run(*cmdTimeout, nil, downloadPath, args...); err != nil {
-		return fmt.Errorf("executing %s: %v", strings.Join(args, " "), err)
+	cmd := exec.Command(r.Master.VCS.Cmd, "archive", "-t", "files", "-r", rev, path)
+	cmd.Dir = downloadPath
+	if err := run(cmd); err != nil {
+		return fmt.Errorf("executing %v: %v", cmd.Args, err)
 	}
 	return nil
 }
@@ -200,7 +202,7 @@ type HgLog struct {
 const xmlLogTemplate = `
         <Log>
         <Hash>{node|escape}</Hash>
-        <Parent>{parents}</Parent>
+        <Parent>{p1node}</Parent>
         <Author>{author|escape}</Author>
         <Date>{date|rfc3339date}</Date>
         <Desc>{desc|escape}</Desc>

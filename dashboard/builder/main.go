@@ -11,7 +11,10 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -58,11 +61,13 @@ var (
 	buildTimeout   = flag.Duration("buildTimeout", 60*time.Minute, "Maximum time to wait for builds and tests")
 	cmdTimeout     = flag.Duration("cmdTimeout", 10*time.Minute, "Maximum time to wait for an external command")
 	commitInterval = flag.Duration("commitInterval", 1*time.Minute, "Time to wait between polling for new commits (0 disables commit poller)")
+	commitWatch    = flag.Bool("commitWatch", false, "run the commit watch loop only (do no builds)")
 	benchNum       = flag.Int("benchnum", 5, "Run each benchmark that many times")
 	benchTime      = flag.Duration("benchtime", 5*time.Second, "Benchmarking time for a single benchmark run")
 	benchMem       = flag.Int("benchmem", 64, "Approx RSS value to aim at in benchmarks, in MB")
 	fileLock       = flag.String("filelock", "", "File to lock around benchmaring (synchronizes several builders)")
 	verbose        = flag.Bool("v", false, "verbose")
+	report         = flag.Bool("report", true, "whether to report results to the dashboard")
 )
 
 var (
@@ -123,7 +128,7 @@ func main() {
 		os.Exit(2)
 	}
 	flag.Parse()
-	if len(flag.Args()) == 0 {
+	if len(flag.Args()) == 0 && !*commitWatch {
 		flag.Usage()
 	}
 
@@ -185,10 +190,20 @@ func main() {
 		if err != nil {
 			log.Fatal("Error finding revision: ", err)
 		}
+		var exitErr error
 		for _, b := range builders {
 			if err := b.buildHash(hash); err != nil {
 				log.Println(err)
+				exitErr = err
 			}
+		}
+		if exitErr != nil && !*report {
+			// This mode (-report=false) is used for
+			// testing Docker images, making sure the
+			// environment is correctly configured. For
+			// testing, we want a non-zero exit status, as
+			// returned by log.Fatal:
+			log.Fatal("Build error.")
 		}
 		return
 	}
@@ -198,8 +213,11 @@ func main() {
 		os.Exit(2)
 	}
 
-	// Start commit watcher
-	go commitWatcher(goroot)
+	// Start commit watcher.
+	if *commitWatch {
+		commitWatcher(goroot)
+		return
+	}
 
 	// go continuous build mode
 	// check for new commits and build them
@@ -262,7 +280,13 @@ func NewBuilder(goroot *Repo, name string) (*Builder, error) {
 	if b.env, err = b.builderEnv(name); err != nil {
 		return nil, err
 	}
+	if *report {
+		err = b.setKey()
+	}
+	return b, err
+}
 
+func (b *Builder) setKey() error {
 	// read keys from keyfile
 	fn := ""
 	switch runtime.GOOS {
@@ -279,10 +303,43 @@ func NewBuilder(goroot *Repo, name string) (*Builder, error) {
 	}
 	c, err := ioutil.ReadFile(fn)
 	if err != nil {
-		return nil, fmt.Errorf("readKeys %s (%s): %s", b.name, fn, err)
+		// If the on-disk file doesn't exist, also try the
+		// Google Compute Engine metadata.
+		if v := gceProjectMetadata("buildkey-" + b.name); v != "" {
+			b.key = v
+			return nil
+		}
+		return fmt.Errorf("readKeys %s (%s): %s", b.name, fn, err)
 	}
 	b.key = string(bytes.TrimSpace(bytes.SplitN(c, []byte("\n"), 2)[0]))
-	return b, nil
+	return nil
+}
+
+func gceProjectMetadata(attr string) string {
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout:   750 * time.Millisecond,
+				KeepAlive: 30 * time.Second,
+			}).Dial,
+			ResponseHeaderTimeout: 750 * time.Millisecond,
+		},
+	}
+	req, _ := http.NewRequest("GET", "http://metadata.google.internal/computeMetadata/v1/project/attributes/"+attr, nil)
+	req.Header.Set("Metadata-Flavor", "Google")
+	res, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return ""
+	}
+	slurp, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return ""
+	}
+	return string(bytes.TrimSpace(slurp))
 }
 
 // builderEnv returns the builderEnv for this buildTool.
@@ -360,7 +417,12 @@ func (b *Builder) buildHash(hash string) error {
 	// create place in which to do work
 	workpath := filepath.Join(*buildroot, b.name+"-"+hash[:12])
 	if err := os.Mkdir(workpath, mkdirPerm); err != nil {
-		return err
+		if err2 := removePath(workpath); err2 != nil {
+			return err
+		}
+		if err := os.Mkdir(workpath, mkdirPerm); err != nil {
+			return err
+		}
 	}
 	defer removePath(workpath)
 
@@ -409,15 +471,14 @@ func (b *Builder) buildRepoOnHash(workpath, hash, cmd string) (buildLog string, 
 	}
 
 	// build
-	var buildlog bytes.Buffer
+	var buildbuf bytes.Buffer
 	logfile := filepath.Join(workpath, "build.log")
 	f, err := os.Create(logfile)
 	if err != nil {
-		buildLog = err.Error()
-		return
+		return err.Error(), 0, err
 	}
 	defer f.Close()
-	w := io.MultiWriter(f, &buildlog)
+	w := io.MultiWriter(f, &buildbuf)
 
 	// go's build command is a script relative to the srcDir, whereas
 	// gccgo's build command is usually "make check-go" in the srcDir.
@@ -427,23 +488,28 @@ func (b *Builder) buildRepoOnHash(workpath, hash, cmd string) (buildLog string, 
 		}
 	}
 
-	// make sure commands with extra arguments are handled properly
-	splitCmd := strings.Split(cmd, " ")
+	// naive splitting of command from its arguments:
+	args := strings.Split(cmd, " ")
+	c := exec.Command(args[0], args[1:]...)
+	c.Dir = srcDir
+	c.Env = b.envv()
+	if *verbose {
+		c.Stdout = io.MultiWriter(os.Stdout, w)
+		c.Stderr = io.MultiWriter(os.Stderr, w)
+	} else {
+		c.Stdout = w
+		c.Stderr = w
+	}
+
 	startTime := time.Now()
-	ok, err := runOutput(*buildTimeout, b.envv(), w, srcDir, splitCmd...)
-	runTime = time.Now().Sub(startTime)
-	if !ok && err == nil {
-		err = fmt.Errorf("build failed")
+	err = run(c, runTimeout(*buildTimeout))
+	runTime = time.Since(startTime)
+	if err != nil {
+		fmt.Fprintf(w, "Build complete, duration %v. Result: error: %v\n", runTime, err)
+	} else {
+		fmt.Fprintf(w, "Build complete, duration %v. Result: success\n", runTime)
 	}
-	errf := func() string {
-		if err != nil {
-			return fmt.Sprintf("error: %v", err)
-		}
-		return "success"
-	}
-	fmt.Fprintf(w, "Build complete, duration %v. Result: %v\n", runTime, errf())
-	buildLog = buildlog.String()
-	return
+	return buildbuf.String(), runTime, err
 }
 
 // failBuild checks for a new commit for this builder
@@ -516,13 +582,12 @@ func (b *Builder) buildSubrepo(goRoot, goPath, pkg, hash string) (string, error)
 	}
 
 	// fetch package and dependencies
-	log, ok, err := runLog(*cmdTimeout, env, goPath, goTool, "get", "-d", pkg+"/...")
-	if err == nil && !ok {
-		err = fmt.Errorf("go exited with status 1")
-	}
+	var outbuf bytes.Buffer
+	err := run(exec.Command(goTool, "get", "-d", pkg+"/..."), runEnv(env), allOutput(&outbuf), runDir(goPath))
 	if err != nil {
-		return log, err
+		return outbuf.String(), err
 	}
+	outbuf.Reset()
 
 	// hg update to the specified hash
 	pkgmaster, err := vcs.RepoRootForImportPath(pkg, *verbose)
@@ -538,11 +603,9 @@ func (b *Builder) buildSubrepo(goRoot, goPath, pkg, hash string) (string, error)
 	}
 
 	// test the package
-	log, ok, err = runLog(*buildTimeout, env, goPath, goTool, "test", "-short", pkg+"/...")
-	if err == nil && !ok {
-		err = fmt.Errorf("go exited with status 1")
-	}
-	return log, err
+	err = run(exec.Command(goTool, "test", "-short", pkg+"/..."),
+		runTimeout(*buildTimeout), runEnv(env), allOutput(&outbuf), runDir(goPath))
+	return outbuf.String(), err
 }
 
 // repoForTool returns the correct RepoRoot for the buildTool, or an error if
@@ -571,7 +634,11 @@ func isFile(name string) bool {
 // commitWatcher polls hg for new commits and tells the dashboard about them.
 func commitWatcher(goroot *Repo) {
 	if *commitInterval == 0 {
-		log.Printf("commitInterval is %s, disabling commitWatcher", *commitInterval)
+		log.Printf("commitInterval is 0; disabling commitWatcher")
+		return
+	}
+	if !*report {
+		log.Printf("-report is false; disabling commitWatcher")
 		return
 	}
 	// Create builder just to get master key.
@@ -708,6 +775,7 @@ func addCommit(pkg, hash, key string) bool {
 		log.Printf("failed to add %s to dashboard: %v", hash, err)
 		return false
 	}
+	l.added = true
 	return true
 }
 

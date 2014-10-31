@@ -20,6 +20,9 @@
 //		_ = x /* ERROR "not declared" */ + 1
 //	}
 
+// TODO(gri) Also collect strict mode errors of the form /* STRICT ... */
+//           and test against strict mode.
+
 package types_test
 
 import (
@@ -50,6 +53,7 @@ var (
 var tests = [][]string{
 	{"testdata/errors.src"},
 	{"testdata/importdecl0a.src", "testdata/importdecl0b.src"},
+	{"testdata/importdecl1a.src", "testdata/importdecl1b.src"},
 	{"testdata/cycles.src"},
 	{"testdata/cycles1.src"},
 	{"testdata/cycles2.src"},

@@ -17,41 +17,16 @@ import (
 	"go/build"
 	"go/token"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"code.google.com/p/go.tools/go/buildutil"
 	"code.google.com/p/go.tools/go/loader"
 	"code.google.com/p/go.tools/go/types"
 )
-
-func allPackages() []string {
-	var pkgs []string
-	root := filepath.Join(runtime.GOROOT(), "src/pkg") + string(os.PathSeparator)
-	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		// Prune the search if we encounter any of these names:
-		switch filepath.Base(path) {
-		case "testdata", ".hg":
-			return filepath.SkipDir
-		}
-		if info.IsDir() {
-			pkg := filepath.ToSlash(strings.TrimPrefix(path, root))
-			switch pkg {
-			case "builtin", "pkg":
-				return filepath.SkipDir // skip these subtrees
-			case "":
-				return nil // ignore root of tree
-			}
-			pkgs = append(pkgs, pkg)
-		}
-
-		return nil
-	})
-	return pkgs
-}
 
 func TestStdlib(t *testing.T) {
 	runtime.GC()
@@ -61,8 +36,10 @@ func TestStdlib(t *testing.T) {
 	alloc := memstats.Alloc
 
 	// Load, parse and type-check the program.
-	var conf loader.Config
-	for _, path := range allPackages() {
+	ctxt := build.Default // copy
+	ctxt.GOPATH = ""      // disable GOPATH
+	conf := loader.Config{Build: &ctxt}
+	for _, path := range buildutil.AllPackages(conf.Build) {
 		if err := conf.ImportWithTests(path); err != nil {
 			t.Error(err)
 		}
@@ -139,8 +116,14 @@ func TestStdlib(t *testing.T) {
 
 func TestCgoOption(t *testing.T) {
 	switch runtime.GOOS {
-	// on these systems, the net and os/user packages don't use cgo.
+	// On these systems, the net and os/user packages don't use cgo.
 	case "plan9", "solaris", "windows":
+		return
+	}
+	// In nocgo builds (e.g. linux-amd64-nocgo),
+	// there is no "runtime/cgo" package,
+	// so cgo-generated Go files will have a failing import.
+	if !build.Default.CgoEnabled {
 		return
 	}
 	// Test that we can load cgo-using packages with

@@ -5,8 +5,10 @@
 package main_test
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -138,6 +140,11 @@ func waitForServer(t *testing.T, address string) {
 	t.Fatalf("Server %q failed to respond in 5 seconds", address)
 }
 
+func killAndWait(cmd *exec.Cmd) {
+	cmd.Process.Kill()
+	cmd.Wait()
+}
+
 // Basic integration test for godoc HTTP interface.
 func TestWeb(t *testing.T) {
 	bin, cleanup := buildGodoc(t)
@@ -150,13 +157,51 @@ func TestWeb(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("failed to start godoc: %s", err)
 	}
-	defer cmd.Process.Kill()
+	defer killAndWait(cmd)
 	waitForServer(t, addr)
-	tests := []struct{ path, substr string }{
-		{"/", "Go is an open source programming language"},
-		{"/pkg/fmt/", "Package fmt implements formatted I/O"},
-		{"/src/pkg/fmt/", "scan_test.go"},
-		{"/src/pkg/fmt/print.go", "// Println formats using"},
+	tests := []struct {
+		path      string
+		match     []string
+		dontmatch []string
+	}{
+		{
+			path:  "/",
+			match: []string{"Go is an open source programming language"},
+		},
+		{
+			path:  "/pkg/fmt/",
+			match: []string{"Package fmt implements formatted I/O"},
+		},
+		{
+			path:  "/src/fmt/",
+			match: []string{"scan_test.go"},
+		},
+		{
+			path:  "/src/fmt/print.go",
+			match: []string{"// Println formats using"},
+		},
+		{
+			path: "/pkg",
+			match: []string{
+				"Standard library",
+				"Package fmt implements formatted I/O",
+			},
+			dontmatch: []string{
+				"internal/syscall",
+				"cmd/gc",
+			},
+		},
+		{
+			path: "/pkg/?m=all",
+			match: []string{
+				"Standard library",
+				"Package fmt implements formatted I/O",
+				"internal/syscall",
+			},
+			dontmatch: []string{
+				"cmd/gc",
+			},
+		},
 	}
 	for _, test := range tests {
 		url := fmt.Sprintf("http://%s%s", addr, test.path)
@@ -170,9 +215,21 @@ func TestWeb(t *testing.T) {
 		if err != nil {
 			t.Errorf("GET %s: failed to read body: %s (response: %v)", url, err, resp)
 		}
-		if bytes.Index(body, []byte(test.substr)) < 0 {
-			t.Errorf("GET %s: want substring %q in body, got:\n%s",
-				url, test.substr, string(body))
+		isErr := false
+		for _, substr := range test.match {
+			if !bytes.Contains(body, []byte(substr)) {
+				t.Errorf("GET %s: wanted substring %q in body", url, substr)
+				isErr = true
+			}
+		}
+		for _, substr := range test.dontmatch {
+			if bytes.Contains(body, []byte(substr)) {
+				t.Errorf("GET %s: didn't want substring %q in body", url, substr)
+				isErr = true
+			}
+		}
+		if isErr {
+			t.Errorf("GET %s: got:\n%s", url, body)
 		}
 	}
 }
@@ -186,7 +243,7 @@ func TestTypeAnalysis(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpdir)
 	for _, f := range []struct{ file, content string }{
-		{"goroot/src/pkg/lib/lib.go", `
+		{"goroot/src/lib/lib.go", `
 package lib
 type T struct{}
 const C = 3
@@ -222,13 +279,30 @@ func main() { print(lib.V) }
 		cmd.Env = append(cmd.Env, e)
 	}
 	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	cmd.Args[0] = "godoc"
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("failed to start godoc: %s", err)
 	}
-	defer cmd.Process.Kill()
+	defer killAndWait(cmd)
 	waitForServer(t, addr)
+
+	// Wait for type analysis to complete.
+	reader := bufio.NewReader(stderr)
+	for {
+		s, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprint(os.Stderr, s)
+		if strings.Contains(s, "Type analysis complete.") {
+			break
+		}
+	}
+	go io.Copy(os.Stderr, reader)
 
 	t0 := time.Now()
 
@@ -237,14 +311,14 @@ func main() { print(lib.V) }
 	// has been annotated onto the source view.
 tryagain:
 	for _, test := range []struct{ url, pattern string }{
-		{"/src/pkg/lib/lib.go", "L2.*package .*Package docs for lib.*/pkg/lib"},
-		{"/src/pkg/lib/lib.go", "L3.*type .*type info for T.*struct"},
-		{"/src/pkg/lib/lib.go", "L5.*var V .*type T struct"},
-		{"/src/pkg/lib/lib.go", "L6.*func .*type T struct.*T.*return .*const C untyped int.*C"},
+		{"/src/lib/lib.go", "L2.*package .*Package docs for lib.*/lib"},
+		{"/src/lib/lib.go", "L3.*type .*type info for T.*struct"},
+		{"/src/lib/lib.go", "L5.*var V .*type T struct"},
+		{"/src/lib/lib.go", "L6.*func .*type T struct.*T.*return .*const C untyped int.*C"},
 
-		{"/src/pkg/app/main.go", "L2.*package .*Package docs for app"},
-		{"/src/pkg/app/main.go", "L3.*import .*Package docs for lib.*lib"},
-		{"/src/pkg/app/main.go", "L4.*func main.*package lib.*lib.*var lib.V lib.T.*V"},
+		{"/src/app/main.go", "L2.*package .*Package docs for app"},
+		{"/src/app/main.go", "L3.*import .*Package docs for lib.*lib"},
+		{"/src/app/main.go", "L4.*func main.*package lib.*lib.*var lib.V lib.T.*V"},
 	} {
 		url := fmt.Sprintf("http://%s%s", addr, test.url)
 		resp, err := http.Get(url)

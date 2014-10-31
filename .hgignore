@@ -53,10 +53,6 @@ test/times.out
 test/garbage/*.out
 goinstall.log
 last-change
-VERSION.cache
-
-syntax:regexp
-^bin/
-^pkg/
-^src/cmd/(.*)/6?\1$
-^.*/core.[0-9]*$
+dashboard/coordinator/buildongce/client-*.dat
+dashboard/coordinator/buildongce/token.dat
+dashboard/coordinator/coordinator

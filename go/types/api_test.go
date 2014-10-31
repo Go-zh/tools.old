@@ -588,6 +588,39 @@ func TestInitOrderInfo(t *testing.T) {
 	}
 }
 
+func TestMultiFileInitOrder(t *testing.T) {
+	fset := token.NewFileSet()
+	mustParse := func(src string) *ast.File {
+		f, err := parser.ParseFile(fset, "main", src, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+
+	fileA := mustParse(`package main; var a = 1`)
+	fileB := mustParse(`package main; var b = 2`)
+
+	// The initialization order must not depend on the parse
+	// order of the files, only on the presentation order to
+	// the type-checker.
+	for _, test := range []struct {
+		files []*ast.File
+		want  string
+	}{
+		{[]*ast.File{fileA, fileB}, "[a = 1 b = 2]"},
+		{[]*ast.File{fileB, fileA}, "[b = 2 a = 1]"},
+	} {
+		var info Info
+		if _, err := new(Config).Check("main", fset, test.files, &info); err != nil {
+			t.Fatal(err)
+		}
+		if got := fmt.Sprint(info.InitOrder); got != test.want {
+			t.Fatalf("got %s; want %s", got, test.want)
+		}
+	}
+}
+
 func TestFiles(t *testing.T) {
 	var sources = []string{
 		"package p; type T struct{}; func (T) m1() {}",
@@ -647,7 +680,7 @@ func TestSelection(t *testing.T) {
 		conf.Packages[path] = pkg
 	}
 
-	libSrc := `
+	const libSrc = `
 package lib
 type T float64
 const C T = 3
@@ -655,7 +688,7 @@ var V T
 func F() {}
 func (T) M() {}
 `
-	mainSrc := `
+	const mainSrc = `
 package main
 import "lib"
 
@@ -719,12 +752,7 @@ func main() {
         _ = (*B).f
 }`
 
-	// TODO(adonovan): assert all map entries are used at least once.
 	wantOut := map[string][2]string{
-		"lib.T":   {"qualified ident type lib.T float64", ".[]"},
-		"lib.C":   {"qualified ident const lib.C lib.T", ".[]"},
-		"lib.F":   {"qualified ident func lib.F()", ".[]"},
-		"lib.V":   {"qualified ident var lib.V lib.T", ".[]"},
 		"lib.T.M": {"method expr (lib.T) M(lib.T)", ".[0]"},
 
 		"A{}.B":    {"field (main.A) B *main.B", ".[0]"},
@@ -740,12 +768,12 @@ func main() {
 		"new(A).f": {"method (*main.A) f(int)", "->[0 0]"},
 		"A{}.g":    {"method (main.A) g()", ".[1 0]"},
 		"new(A).g": {"method (*main.A) g()", "->[1 0]"},
-		"new(A).h": {"method (*main.A) h()", "->[1 1]"},
+		"new(A).h": {"method (*main.A) h()", "->[1 1]"}, // TODO(gri) should this report .[1 1] ?
 		"B{}.f":    {"method (main.B) f(int)", ".[0]"},
 		"new(B).f": {"method (*main.B) f(int)", "->[0]"},
 		"C{}.g":    {"method (main.C) g()", ".[0]"},
 		"new(C).g": {"method (*main.C) g()", "->[0]"},
-		"new(C).h": {"method (*main.C) h()", "->[1]"},
+		"new(C).h": {"method (*main.C) h()", "->[1]"}, // TODO(gri) should this report .[1] ?
 
 		"A.f":    {"method expr (main.A) f(main.A, int)", "->[0 0]"},
 		"(*A).f": {"method expr (*main.A) f(*main.A, int)", "->[0 0]"},
@@ -775,6 +803,7 @@ func main() {
 		if want != got {
 			t.Errorf("%s: got %q; want %q", syntax, got, want)
 		}
+		delete(wantOut, syntax)
 
 		// We must explicitly assert properties of the
 		// Signature's receiver since it doesn't participate
@@ -790,4 +819,118 @@ func main() {
 			t.Error("%s: signature has receiver %s", sig, sig.Recv().Type())
 		}
 	}
+	// Assert that all wantOut entries were used exactly once.
+	for syntax := range wantOut {
+		t.Errorf("no ast.Selection found with syntax %q", syntax)
+	}
+}
+
+func TestIssue8518(t *testing.T) {
+	fset := token.NewFileSet()
+	conf := Config{
+		Packages: make(map[string]*Package),
+		Error:    func(err error) { t.Log(err) }, // don't exit after first error
+		Import: func(imports map[string]*Package, path string) (*Package, error) {
+			return imports[path], nil
+		},
+	}
+	makePkg := func(path, src string) {
+		f, err := parser.ParseFile(fset, path, src, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pkg, _ := conf.Check(path, fset, []*ast.File{f}, nil) // errors logged via conf.Error
+		conf.Packages[path] = pkg
+	}
+
+	const libSrc = `
+package a 
+import "missing"
+const C1 = foo
+const C2 = missing.C
+`
+
+	const mainSrc = `
+package main
+import "a"
+var _ = a.C1
+var _ = a.C2
+`
+
+	makePkg("a", libSrc)
+	makePkg("main", mainSrc) // don't crash when type-checking this package
+}
+
+func TestLookupFieldOrMethod(t *testing.T) {
+	// Test cases assume a lookup of the form a.f or x.f, where a stands for an
+	// addressable value, and x for a non-addressable value (even though a variable
+	// for ease of test case writing).
+	var tests = []struct {
+		src      string
+		found    bool
+		index    []int
+		indirect bool
+	}{
+		// field lookups
+		{"var x T; type T struct{}", false, nil, false},
+		{"var x T; type T struct{ f int }", true, []int{0}, false},
+		{"var x T; type T struct{ a, b, f, c int }", true, []int{2}, false},
+
+		// method lookups
+		{"var a T; type T struct{}; func (T) f() {}", true, []int{0}, false},
+		{"var a *T; type T struct{}; func (T) f() {}", true, []int{0}, true},
+		{"var a T; type T struct{}; func (*T) f() {}", true, []int{0}, false},
+		{"var a *T; type T struct{}; func (*T) f() {}", true, []int{0}, true}, // TODO(gri) should this report indirect = false?
+
+		// collisions
+		{"type ( E1 struct{ f int }; E2 struct{ f int }; x struct{ E1; *E2 })", false, []int{1, 0}, false},
+		{"type ( E1 struct{ f int }; E2 struct{}; x struct{ E1; *E2 }); func (E2) f() {}", false, []int{1, 0}, false},
+
+		// outside methodset
+		// (*T).f method exists, but value of type T is not addressable
+		{"var x T; type T struct{}; func (*T) f() {}", false, nil, true},
+	}
+
+	for _, test := range tests {
+		pkg, err := pkgFor("test", "package p;"+test.src, nil)
+		if err != nil {
+			t.Errorf("%s: incorrect test case: %s", test.src, err)
+			continue
+		}
+
+		obj := pkg.Scope().Lookup("a")
+		if obj == nil {
+			if obj = pkg.Scope().Lookup("x"); obj == nil {
+				t.Errorf("%s: incorrect test case - no object a or x", test.src)
+				continue
+			}
+		}
+
+		f, index, indirect := LookupFieldOrMethod(obj.Type(), obj.Name() == "a", pkg, "f")
+		if (f != nil) != test.found {
+			if f == nil {
+				t.Errorf("%s: got no object; want one", test.src)
+			} else {
+				t.Errorf("%s: got object = %v; want none", test.src, f)
+			}
+		}
+		if !sameSlice(index, test.index) {
+			t.Errorf("%s: got index = %v; want %v", test.src, index, test.index)
+		}
+		if indirect != test.indirect {
+			t.Errorf("%s: got indirect = %v; want %v", test.src, indirect, test.indirect)
+		}
+	}
+}
+
+func sameSlice(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, x := range a {
+		if x != b[i] {
+			return false
+		}
+	}
+	return true
 }

@@ -87,23 +87,24 @@ func (b *Builder) buildBenchmark(workpath string, update bool) (benchBin, log st
 		"GOPATH=" + gopath},
 		b.envv()...)
 	// First, download without installing.
-	cmd := []string{gobin, "get", "-d"}
+	args := []string{"get", "-d"}
 	if update {
-		cmd = append(cmd, "-u")
+		args = append(args, "-u")
 	}
-	cmd = append(cmd, *benchPath)
+	args = append(args, *benchPath)
 	var buildlog bytes.Buffer
-	ok, err := runOutput(*buildTimeout, env, &buildlog, workpath, cmd...)
-	if !ok || err != nil {
+	runOpts := []runOpt{runTimeout(*buildTimeout), runEnv(env), allOutput(&buildlog), runDir(workpath)}
+	err = run(exec.Command(gobin, args...), runOpts...)
+	if err != nil {
 		fmt.Fprintf(&buildlog, "go get -d %s failed: %s", *benchPath, err)
 		return "", buildlog.String(), err
 	}
 	// Then, build into workpath.
 	benchBin = filepath.Join(workpath, "benchbin") + exeExt
-	cmd = []string{gobin, "build", "-o", benchBin, *benchPath}
+	args = []string{"build", "-o", benchBin, *benchPath}
 	buildlog.Reset()
-	ok, err = runOutput(*buildTimeout, env, &buildlog, workpath, cmd...)
-	if !ok || err != nil {
+	err = run(exec.Command(gobin, args...), runOpts...)
+	if err != nil {
 		fmt.Fprintf(&buildlog, "go build %s failed: %s", *benchPath, err)
 		return "", buildlog.String(), err
 	}
@@ -114,13 +115,14 @@ func (b *Builder) buildBenchmark(workpath string, update bool) (benchBin, log st
 // based on the list of available benchmarks, already executed benchmarks
 // and -benchcpu list.
 func chooseBenchmark(benchBin string, doneBenchs []string) (bench string, procs, affinity int, last bool) {
-	out, err := exec.Command(benchBin).CombinedOutput()
+	var out bytes.Buffer
+	err := run(exec.Command(benchBin), allOutput(&out))
 	if err != nil {
 		log.Printf("Failed to query benchmark list: %v\n%s", err, out)
 		last = true
 		return
 	}
-	outStr := string(out)
+	outStr := out.String()
 	nlIdx := strings.Index(outStr, "\n")
 	if nlIdx < 0 {
 		log.Printf("Failed to parse benchmark list (no new line): %s", outStr)
@@ -172,23 +174,23 @@ func (b *Builder) executeBenchmark(workpath, hash, benchBin, bench string, procs
 		"GOGCTRACE=1",       // before Go1.2
 		fmt.Sprintf("GOMAXPROCS=%v", procs)},
 		b.envv()...)
-	cmd := []string{benchBin,
+	args := []string{
 		"-bench", bench,
 		"-benchmem", strconv.Itoa(*benchMem),
 		"-benchtime", benchTime.String(),
 		"-benchnum", strconv.Itoa(*benchNum),
 		"-tmpdir", workpath}
 	if affinity != 0 {
-		cmd = append(cmd, "-affinity", strconv.Itoa(affinity))
+		args = append(args, "-affinity", strconv.Itoa(affinity))
 	}
 	benchlog := new(bytes.Buffer)
-	ok, err := runOutput(*buildTimeout, env, benchlog, workpath, cmd...)
+	err := run(exec.Command(benchBin, args...), runEnv(env), allOutput(benchlog), runDir(workpath))
 	if strip := benchlog.Len() - 512<<10; strip > 0 {
 		// Leave the last 512K, that part contains metrics.
 		benchlog = bytes.NewBuffer(benchlog.Bytes()[strip:])
 	}
 	artifacts = []PerfArtifact{{Type: "log", Body: benchlog.String()}}
-	if !ok || err != nil {
+	if err != nil {
 		if err != nil {
 			log.Printf("Failed to execute benchmark '%v': %v", bench, err)
 			ok = false
@@ -204,6 +206,7 @@ func (b *Builder) executeBenchmark(workpath, hash, benchBin, bench string, procs
 	}
 	metrics = metrics1
 	artifacts = append(artifacts, artifacts1...)
+	ok = true
 	return
 }
 

@@ -77,11 +77,11 @@ func (a *analysis) doTypeInfo(info *loader.PackageInfo, implements map[*types.Na
 		// Correct the position for non-renaming import specs.
 		//  import "sync/atomic"
 		//          ^^^^^^^^^^^
-		if obj, ok := obj.(*types.PkgName); ok && id.Name == obj.Pkg().Name() {
+		if obj, ok := obj.(*types.PkgName); ok && id.Name == obj.Imported().Name() {
 			// Assume this is a non-renaming import.
 			// NB: not true for degenerate renamings: `import foo "foo"`.
 			pos++
-			Len = len(obj.Pkg().Path())
+			Len = len(obj.Imported().Path())
 		}
 
 		if obj.Pkg() == nil {
@@ -230,9 +230,5 @@ func deref(typ types.Type) types.Type {
 
 // isPackageLevel reports whether obj is a package-level object.
 func isPackageLevel(obj types.Object) bool {
-	// TODO(adonovan): fix go/types bug:
-	//   obj.Parent().Parent() == obj.Pkg().Scope()
-	// doesn't work because obj.Parent() gets mutated during
-	// dot-imports.
 	return obj.Pkg().Scope().Lookup(obj.Name()) == obj
 }

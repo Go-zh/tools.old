@@ -608,7 +608,6 @@ func main() {
 <div class="container">
 
 {{with .Title}}
-  <div id="plusone"><g:plusone size="small" annotation="none"></g:plusone></div>
   <h1>{{html .}}</h1>
 {{end}}
 {{with .Subtitle}}
@@ -893,15 +892,6 @@ function toggleHash() {
     }
 }
 
-function addPlusButtons() {
-  var po = document.createElement('script');
-  po.type = 'text/javascript';
-  po.async = true;
-  po.src = 'https://apis.google.com/js/platform.js';
-  var s = document.getElementsByTagName('script')[0];
-  s.parentNode.insertBefore(po, s);
-}
-
 $(document).ready(function() {
   bindSearchEvents();
   generateTOC();
@@ -917,7 +907,6 @@ $(document).ready(function() {
   setupTypeInfo();
   setupCallgraphs();
   toggleHash();
-  addPlusButtons();
 
   // godoc.html defines window.initFuncs in the <head> tag, and root.html and
   // codewalk.js push their on-page-ready functions to the list.
@@ -1112,7 +1101,7 @@ function setupCallgraphs() {
   document.getElementById("pkg-callgraph").style.display = "block";
 
   var treeviews = document.getElementsByClassName("treeview");
-  for (var i in treeviews) {
+  for (var i = 0; i < treeviews.length; i++) {
     var tree = treeviews[i];
     if (tree.id == null || tree.id.indexOf("callgraph-") != 0) {
       continue;
@@ -1953,7 +1942,7 @@ function cgAddChild(tree, ul, cgn) {
 -->
 	{{end}}
 		<h2 id="pkg-subdirectories">子目录</h2>
-	{{if eq $.Dirname "/src/pkg"}}
+	{{if eq $.Dirname "/src"}}
 		<div id="manual-nav">
 			<dl>
 <!--
@@ -1986,7 +1975,7 @@ function cgAddChild(tree, ul, cgn) {
 -->
 	<th style="text-align: left; width: auto">摘要</th>
 	</tr>
-	{{if not (or (eq $.Dirname "/src/pkg") (eq $.Dirname "/src/cmd") $.DirFlat)}}
+	{{if not (or (eq $.Dirname "/src") (eq $.Dirname "/src/cmd") $.DirFlat)}}
 		<tr>
 		<td><a href="..">..</a></td>
 		</tr>
@@ -2010,7 +1999,7 @@ function cgAddChild(tree, ul, cgn) {
 	{{end}}
 	</table>
 
-	{{if eq $.Dirname "/src/pkg"}}
+	{{if eq $.Dirname "/src"}}
 <!--
 	<h2 id="other">Other packages</h2>
 

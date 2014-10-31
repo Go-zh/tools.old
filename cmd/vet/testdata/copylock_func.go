@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// This file contains tests for the copylock checker.
+// This file contains tests for the copylock checker's
+// function declaration analysis.
 
 package testdata
 

@@ -102,6 +102,8 @@ type Config struct {
 	// Secondary errors (for instance, to enumerate all types
 	// involved in an invalid recursive type declaration) have
 	// error strings that start with a '\t' character.
+	// If Error == nil, type-checking stops with the first
+	// error found.
 	Error func(err error)
 
 	// If Import != nil, it is called for each imported package.
@@ -109,7 +111,7 @@ type Config struct {
 	Import Importer
 
 	// If Sizes != nil, it provides the sizing functions for package unsafe.
-	// Otherwise &StdSize{WordSize: 8, MaxAlign: 8} is used instead.
+	// Otherwise &StdSizes{WordSize: 8, MaxAlign: 8} is used instead.
 	Sizes Sizes
 }
 
@@ -321,7 +323,8 @@ func (init *Initializer) String() string {
 // Check type-checks a package and returns the resulting package object,
 // the first error if any, and if info != nil, additional type information.
 // The package is marked as complete if no errors occurred, otherwise it is
-// incomplete.
+// incomplete. See Config.Error for controlling behavior in the presence of
+// errors.
 //
 // The package is specified by a list of *ast.Files and corresponding
 // file set, and the package path the package is identified with.
@@ -333,8 +336,8 @@ func (conf *Config) Check(path string, fset *token.FileSet, files []*ast.File, i
 
 // AssertableTo reports whether a value of type V can be asserted to have type T.
 func AssertableTo(V *Interface, T Type) bool {
-	f, _ := MissingMethod(T, V, false)
-	return f == nil
+	m, _ := assertableTo(V, T)
+	return m == nil
 }
 
 // AssignableTo reports whether a value of type V is assignable to a variable of type T.

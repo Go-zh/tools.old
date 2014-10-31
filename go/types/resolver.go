@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	pathLib "path"
 	"strconv"
 	"strings"
 	"unicode"
@@ -109,6 +110,16 @@ func (check *Checker) declarePkgObj(ident *ast.Ident, obj Object, d *declInfo) {
 
 	check.declare(check.pkg.scope, ident, obj)
 	check.objMap[obj] = d
+	obj.setOrder(uint32(len(check.objMap)))
+}
+
+// filename returns a filename suitable for debugging output.
+func (check *Checker) filename(fileNo int) string {
+	file := check.files[fileNo]
+	if pos := file.Pos(); pos.IsValid() {
+		return check.fset.File(pos).Name()
+	}
+	return fmt.Sprintf("file[%d]", fileNo)
 }
 
 // collectObjects collects all file and package objects and inserts them
@@ -137,7 +148,9 @@ func (check *Checker) collectObjects() {
 		// The package identifier denotes the current package,
 		// but there is no corresponding package object.
 		check.recordDef(file.Name, nil)
-		fileScope := check.fileScopes[fileNo]
+
+		fileScope := NewScope(check.pkg.scope, check.filename(fileNo))
+		check.recordScope(file, fileScope)
 
 		for _, decl := range file.Decls {
 			switch d := decl.(type) {
@@ -192,7 +205,7 @@ func (check *Checker) collectObjects() {
 							}
 						}
 
-						obj := NewPkgName(s.Pos(), imp, name)
+						obj := NewPkgName(s.Pos(), pkg, name, imp)
 						if s.Name != nil {
 							// in a dot-import, the dot represents the package
 							check.recordDef(s.Name, obj)
@@ -207,18 +220,21 @@ func (check *Checker) collectObjects() {
 								// A package scope may contain non-exported objects,
 								// do not import them!
 								if obj.Exported() {
+									// TODO(gri) When we import a package, we create
+									// a new local package object. We should do the
+									// same for each dot-imported object. That way
+									// they can have correct position information.
+									// (We must not modify their existing position
+									// information because the same package - found
+									// via Config.Packages - may be dot-imported in
+									// another package!)
 									check.declare(fileScope, nil, obj)
 									check.recordImplicit(s, obj)
 								}
 							}
 							// add position to set of dot-import positions for this file
 							// (this is only needed for "imported but not used" errors)
-							posSet := check.dotImports[fileNo]
-							if posSet == nil {
-								posSet = make(map[*Package]token.Pos)
-								check.dotImports[fileNo] = posSet
-							}
-							posSet[imp] = s.Pos()
+							check.addUnusedDotImport(fileScope, imp, s.Pos())
 						} else {
 							// declare imported package object in file scope
 							check.declare(fileScope, nil, obj)
@@ -332,6 +348,7 @@ func (check *Checker) collectObjects() {
 				}
 				info := &declInfo{file: fileScope, fdecl: d}
 				check.objMap[obj] = info
+				obj.setOrder(uint32(len(check.objMap)))
 
 			default:
 				check.invalidAST(d.Pos(), "unknown ast.Decl node %T", d)
@@ -340,10 +357,17 @@ func (check *Checker) collectObjects() {
 	}
 
 	// verify that objects in package and file scopes have different names
-	for _, scope := range check.fileScopes {
+	for _, scope := range check.pkg.scope.children /* file scopes */ {
 		for _, obj := range scope.elems {
 			if alt := pkg.scope.Lookup(obj.Name()); alt != nil {
-				check.errorf(alt.Pos(), "%s already declared in this file through import of package %s", obj.Name(), obj.Pkg().Name())
+				if pkg, ok := obj.(*PkgName); ok {
+					check.errorf(alt.Pos(), "%s already declared through import of %s", alt.Name(), pkg.Imported())
+					check.reportAltDecl(pkg)
+				} else {
+					check.errorf(alt.Pos(), "%s already declared through dot-import of %s", alt.Name(), obj.Pkg())
+					// TODO(gri) dot-imported objects don't have a position; reportAltDecl won't print anything
+					check.reportAltDecl(obj)
+				}
 			}
 		}
 	}
@@ -389,34 +413,30 @@ func (check *Checker) unusedImports() {
 	// spec: "It is illegal (...) to directly import a package without referring to
 	// any of its exported identifiers. To import a package solely for its side-effects
 	// (initialization), use the blank identifier as explicit package name."
-	for i, scope := range check.fileScopes {
-		var usedDotImports map[*Package]bool // lazily allocated
+
+	// check use of regular imported packages
+	for _, scope := range check.pkg.scope.children /* file scopes */ {
 		for _, obj := range scope.elems {
-			switch obj := obj.(type) {
-			case *PkgName:
+			if obj, ok := obj.(*PkgName); ok {
 				// Unused "blank imports" are automatically ignored
 				// since _ identifiers are not entered into scopes.
 				if !obj.used {
-					check.softErrorf(obj.pos, "%q imported but not used", obj.pkg.path)
-				}
-			default:
-				// All other objects in the file scope must be dot-
-				// imported. If an object was used, mark its package
-				// as used.
-				if obj.isUsed() {
-					if usedDotImports == nil {
-						usedDotImports = make(map[*Package]bool)
+					path := obj.imported.path
+					base := pathLib.Base(path)
+					if obj.name == base {
+						check.softErrorf(obj.pos, "%q imported but not used", path)
+					} else {
+						check.softErrorf(obj.pos, "%q imported but not used as %s", path, obj.name)
 					}
-					usedDotImports[obj.Pkg()] = true
 				}
 			}
 		}
-		// Iterate through all dot-imports for this file and
-		// check if the corresponding package was used.
-		for pkg, pos := range check.dotImports[i] {
-			if !usedDotImports[pkg] {
-				check.softErrorf(pos, "%q imported but not used", pkg.path)
-			}
+	}
+
+	// check use of dot-imported packages
+	for _, unusedDotImports := range check.unusedDotImports {
+		for pkg, pos := range unusedDotImports {
+			check.softErrorf(pos, "%q imported but not used", pkg.path)
 		}
 	}
 }

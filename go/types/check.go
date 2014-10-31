@@ -7,7 +7,6 @@
 package types
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 
@@ -19,6 +18,19 @@ const (
 	debug = false // leave on during development
 	trace = false // turn on for detailed type resolution traces
 )
+
+// If Strict is set, the type-checker enforces additional
+// rules not specified by the Go 1 spec, but which will
+// catch guaranteed run-time errors if the respective
+// code is executed. In other words, programs passing in
+// Strict mode are Go 1 compliant, but not all Go 1 programs
+// will pass in Strict mode. The additional rules are:
+//
+// - A type assertion x.(T) where T is an interface type
+//   is invalid if any (statically known) method that exists
+//   for both x and T have different signatures.
+//
+const strict = false
 
 // exprInfo stores information about an untyped expression.
 type exprInfo struct {
@@ -60,9 +72,8 @@ type Checker struct {
 	// information collected during type-checking of a set of package files
 	// (initialized by Files, valid only for the duration of check.Files;
 	// maps and lists are allocated on demand)
-	files      []*ast.File              // package files
-	fileScopes []*Scope                 // file scope for each file
-	dotImports []map[*Package]token.Pos // positions of dot-imports for each file
+	files            []*ast.File                       // package files
+	unusedDotImports map[*Scope]map[*Package]token.Pos // positions of unused dot-imported packages for each file scope
 
 	firstErr error                 // first error encountered
 	methods  map[string][]*Func    // maps type names to associated methods
@@ -76,6 +87,22 @@ type Checker struct {
 
 	// debugging
 	indent int // indentation for tracing
+}
+
+// addUnusedImport adds the position of a dot-imported package
+// pkg to the map of dot imports for the given file scope.
+func (check *Checker) addUnusedDotImport(scope *Scope, pkg *Package, pos token.Pos) {
+	mm := check.unusedDotImports
+	if mm == nil {
+		mm = make(map[*Scope]map[*Package]token.Pos)
+		check.unusedDotImports = mm
+	}
+	m := mm[scope]
+	if m == nil {
+		m = make(map[*Package]token.Pos)
+		mm[scope] = m
+	}
+	m[pkg] = pos
 }
 
 // addDeclDep adds the dependency edge (check.decl -> to) if check.decl exists
@@ -148,8 +175,7 @@ func NewChecker(conf *Config, fset *token.FileSet, pkg *Package, info *Info) *Ch
 func (check *Checker) initFiles(files []*ast.File) {
 	// start with a clean slate (check.Files may be called multiple times)
 	check.files = nil
-	check.fileScopes = nil
-	check.dotImports = nil
+	check.unusedDotImports = nil
 
 	check.firstErr = nil
 	check.methods = nil
@@ -157,9 +183,9 @@ func (check *Checker) initFiles(files []*ast.File) {
 	check.funcs = nil
 	check.delayed = nil
 
-	// determine package name, files, and set up file scopes, dotImports maps
+	// determine package name and collect valid files
 	pkg := check.pkg
-	for i, file := range files {
+	for _, file := range files {
 		switch name := file.Name.Name; pkg.name {
 		case "":
 			if name != "_" {
@@ -171,16 +197,6 @@ func (check *Checker) initFiles(files []*ast.File) {
 
 		case name:
 			check.files = append(check.files, file)
-			var comment string
-			if pos := file.Pos(); pos.IsValid() {
-				comment = "file " + check.fset.File(pos).Name()
-			} else {
-				comment = fmt.Sprintf("file[%d]", i)
-			}
-			fileScope := NewScope(pkg.scope, comment)
-			check.recordScope(file, fileScope)
-			check.fileScopes = append(check.fileScopes, fileScope)
-			check.dotImports = append(check.dotImports, nil) // element (map) is lazily allocated
 
 		default:
 			check.errorf(file.Package, "package %s; expected %s", name, pkg.name)
@@ -253,7 +269,7 @@ func (check *Checker) recordTypeAndValue(x ast.Expr, mode operandMode, typ Type,
 	assert(typ != nil)
 	if mode == constant {
 		assert(val != nil)
-		assert(isConstType(typ))
+		assert(typ == Typ[Invalid] || isConstType(typ))
 	}
 	if m := check.Types; m != nil {
 		m[x] = TypeAndValue{mode, typ, val}

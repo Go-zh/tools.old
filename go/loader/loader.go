@@ -49,7 +49,7 @@
 //
 // An AD-HOC package is one specified as a set of source files on the
 // command line.  In the simplest case, it may consist of a single file
-// such as src/pkg/net/http/triv.go.
+// such as $GOROOT/src/net/http/triv.go.
 //
 // EXTERNAL TEST packages are those comprised of a set of *_test.go
 // files all with the same 'package foo_test' declaration, all in the
@@ -428,7 +428,7 @@ func (conf *Config) ImportWithTests(path string) error {
 	xtestFiles, errs := conf.parsePackageFiles(bp, 'x')
 	if len(errs) > 0 {
 		// TODO(adonovan): fix: parse errors in x_test.go files
-		// are still catastrophic to Load().
+		// cause FromArgs() to fail completely.
 		return errs[0] // I/O or parse error
 	}
 	if len(xtestFiles) > 0 {

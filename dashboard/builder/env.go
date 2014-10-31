@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -81,6 +83,14 @@ func (b *Builder) envvWindows() []string {
 			start[name] = s
 		}
 	}
+	if b.goos == "windows" {
+		switch b.goarch {
+		case "amd64":
+			start["PATH"] = `c:\TDM-GCC-64\bin;` + start["PATH"]
+		case "386":
+			start["PATH"] = `c:\TDM-GCC-32\bin;` + start["PATH"]
+		}
+	}
 	skip := map[string]bool{
 		"GOBIN":   true,
 		"GOPATH":  true,
@@ -150,16 +160,10 @@ func (env *gccgoEnv) setup(repo *Repo, workpath, hash string, envv []string) (st
 	}
 
 	// get the modified files for this commit.
-	statusCmd := []string{
-		"hg",
-		"status",
-		"--no-status",
-		"--change",
-		hash,
-	}
 
 	var buf bytes.Buffer
-	if _, err := runOutput(*cmdTimeout, envv, &buf, repo.Path, statusCmd...); err != nil {
+	if err := run(exec.Command("hg", "status", "--no-status", "--change", hash),
+		allOutput(&buf), runDir(repo.Path), runEnv(envv)); err != nil {
 		return "", fmt.Errorf("Failed to find the modified files for %s: %s", hash, err)
 	}
 	modifiedFiles := strings.Split(buf.String(), "\n")
@@ -177,19 +181,19 @@ func (env *gccgoEnv) setup(repo *Repo, workpath, hash string, envv []string) (st
 	// not mirrored, e.g. in support/, we can sync to the most recent gcc commit that
 	// occurred before those files were modified to verify gccgo's status at that point.
 	logCmd := []string{
-		"git",
 		"log",
 		"-1",
 		"--format=%H",
 	}
 	var errMsg string
 	if isMirrored {
-		commitDesc, err := repo.Master.VCS.LogAtRev(repo.Path, hash, "{desc|escape}")
+		commitDesc, err := repo.Master.VCS.LogAtRev(repo.Path, hash, "{desc|firstline|escape}")
 		if err != nil {
 			return "", err
 		}
 
-		logCmd = append(logCmd, "--grep", "'"+string(commitDesc)+"'", "--regexp-ignore-case")
+		quotedDesc := regexp.QuoteMeta(string(commitDesc))
+		logCmd = append(logCmd, "--grep", quotedDesc, "--regexp-ignore-case", "--extended-regexp")
 		errMsg = fmt.Sprintf("Failed to find a commit with a similar description to '%s'", string(commitDesc))
 	} else {
 		commitDate, err := repo.Master.VCS.LogAtRev(repo.Path, hash, "{date|rfc3339date}")
@@ -202,7 +206,7 @@ func (env *gccgoEnv) setup(repo *Repo, workpath, hash string, envv []string) (st
 	}
 
 	buf.Reset()
-	if _, err := runOutput(*cmdTimeout, envv, &buf, gccpath, logCmd...); err != nil {
+	if err := run(exec.Command("git", logCmd...), runEnv(envv), allOutput(&buf), runDir(gccpath)); err != nil {
 		return "", fmt.Errorf("%s: %s", errMsg, err)
 	}
 	gccRev := buf.String()
@@ -212,13 +216,7 @@ func (env *gccgoEnv) setup(repo *Repo, workpath, hash string, envv []string) (st
 
 	// checkout gccRev
 	// TODO(cmang): Fix this to work in parallel mode.
-	checkoutCmd := []string{
-		"git",
-		"reset",
-		"--hard",
-		strings.TrimSpace(gccRev),
-	}
-	if _, err := runOutput(*cmdTimeout, envv, ioutil.Discard, gccpath, checkoutCmd...); err != nil {
+	if err := run(exec.Command("git", "reset", "--hard", strings.TrimSpace(gccRev)), runEnv(envv), runDir(gccpath)); err != nil {
 		return "", fmt.Errorf("Failed to checkout commit at revision %s: %s", gccRev, err)
 	}
 
@@ -229,18 +227,16 @@ func (env *gccgoEnv) setup(repo *Repo, workpath, hash string, envv []string) (st
 	}
 
 	// configure GCC with substituted gofrontend and libgo
-	gccConfigCmd := []string{
-		filepath.Join(gccpath, "configure"),
+	if err := run(exec.Command(filepath.Join(gccpath, "configure"),
 		"--enable-languages=c,c++,go",
 		"--disable-bootstrap",
 		"--disable-multilib",
-	}
-	if _, err := runOutput(*cmdTimeout, envv, ioutil.Discard, gccobjdir, gccConfigCmd...); err != nil {
-		return "", fmt.Errorf("Failed to configure GCC: %s", err)
+	), runEnv(envv), runDir(gccobjdir)); err != nil {
+		return "", fmt.Errorf("Failed to configure GCC: %v", err)
 	}
 
 	// build gcc
-	if _, err := runOutput(*buildTimeout, envv, ioutil.Discard, gccobjdir, "make"); err != nil {
+	if err := run(exec.Command("make"), runTimeout(*buildTimeout), runEnv(envv), runDir(gccobjdir)); err != nil {
 		return "", fmt.Errorf("Failed to build GCC: %s", err)
 	}
 

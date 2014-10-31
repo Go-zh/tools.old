@@ -59,10 +59,6 @@ func (p *Package) LastCommit(c appengine.Context) (*Commit, error) {
 		Order("-Time").
 		Limit(1).
 		GetAll(c, &commits)
-	if _, ok := err.(*datastore.ErrFieldMismatch); ok {
-		// Some fields have been removed, so it's okay to ignore this error.
-		err = nil
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -78,10 +74,6 @@ func GetPackage(c appengine.Context, path string) (*Package, error) {
 	err := datastore.Get(c, p.Key(c), p)
 	if err == datastore.ErrNoSuchEntity {
 		return nil, fmt.Errorf("package %q not found", path)
-	}
-	if _, ok := err.(*datastore.ErrFieldMismatch); ok {
-		// Some fields have been removed, so it's okay to ignore this error.
-		err = nil
 	}
 	return p, err
 }
@@ -135,6 +127,19 @@ func (c *Commit) Valid() error {
 	return nil
 }
 
+func putCommit(c appengine.Context, com *Commit) error {
+	if err := com.Valid(); err != nil {
+		return fmt.Errorf("putting Commit: %v", err)
+	}
+	if com.Num == 0 && com.ParentHash != "0000" { // 0000 is used in tests
+		return fmt.Errorf("putting Commit: invalid Num (must be > 0)")
+	}
+	if _, err := datastore.Put(c, com.Key(c), com); err != nil {
+		return fmt.Errorf("putting Commit: %v", err)
+	}
+	return nil
+}
+
 // each result line is approx 105 bytes. This constant is a tradeoff between
 // build history and the AppEngine datastore limit of 1mb.
 const maxResults = 1000
@@ -158,10 +163,7 @@ func (com *Commit) AddResult(c appengine.Context, r *Result) error {
 		// otherwise, add the new result data for this builder.
 		com.ResultData = trim(append(com.ResultData, r.Data()), maxResults)
 	}
-	if _, err := datastore.Put(c, com.Key(c), com); err != nil {
-		return fmt.Errorf("putting Commit: %v", err)
-	}
-	return nil
+	return putCommit(c, com)
 }
 
 // AddPerfResult remembers that the builder has run the benchmark on the commit.
@@ -180,10 +182,7 @@ func (com *Commit) AddPerfResult(c appengine.Context, builder, benchmark string)
 		}
 	}
 	com.PerfResults = append(com.PerfResults, s)
-	if _, err := datastore.Put(c, com.Key(c), com); err != nil {
-		return fmt.Errorf("putting Commit: %v", err)
-	}
-	return nil
+	return putCommit(c, com)
 }
 
 func trim(s []string, n int) []string {
@@ -223,6 +222,12 @@ func (c *Commit) Results() (results []*Result) {
 }
 
 func (c *Commit) ResultGoHashes() []string {
+	// For the main repo, just return the empty string
+	// (there's no corresponding main repo hash for a main repo Commit).
+	// This function is only really useful for sub-repos.
+	if c.PackagePath == "" {
+		return []string{""}
+	}
 	var hashes []string
 	for _, r := range c.ResultData {
 		p := strings.SplitN(r, "|", 4)
@@ -317,28 +322,50 @@ func GetCommits(c appengine.Context, startCommitNum, n int) ([]*Commit, error) {
 	if startCommitNum < 0 || n <= 0 {
 		return nil, fmt.Errorf("GetCommits: invalid args (%v, %v)", startCommitNum, n)
 	}
-	var res []*Commit
-	for n > 0 {
-		cr, err := GetCommitRun(c, startCommitNum)
+
+	p := &Package{}
+	t := datastore.NewQuery("CommitRun").
+		Ancestor(p.Key(c)).
+		Filter("StartCommitNum >=", startCommitNum/PerfRunLength*PerfRunLength).
+		Order("StartCommitNum").
+		Limit(100).
+		Run(c)
+
+	res := make([]*Commit, n)
+	for {
+		cr := new(CommitRun)
+		_, err := t.Next(cr)
+		if err == datastore.Done {
+			break
+		}
 		if err != nil {
 			return nil, err
 		}
-		idx := startCommitNum - cr.StartCommitNum
-		cnt := PerfRunLength - idx
-		if cnt > n {
-			cnt = n
+		if cr.StartCommitNum >= startCommitNum+n {
+			break
 		}
-		for i := idx; i < idx+cnt; i++ {
+		// Calculate start index for copying.
+		i := 0
+		if cr.StartCommitNum < startCommitNum {
+			i = startCommitNum - cr.StartCommitNum
+		}
+		// Calculate end index for copying.
+		e := PerfRunLength
+		if cr.StartCommitNum+e > startCommitNum+n {
+			e = startCommitNum + n - cr.StartCommitNum
+		}
+		for ; i < e; i++ {
 			com := new(Commit)
 			com.Hash = cr.Hash[i]
 			com.User = cr.User[i]
 			com.Desc = cr.Desc[i]
 			com.Time = cr.Time[i]
 			com.NeedsBenchmarking = cr.NeedsBenchmarking[i]
-			res = append(res, com)
+			res[cr.StartCommitNum-startCommitNum+i] = com
 		}
-		startCommitNum += cnt
-		n -= cnt
+		if e != PerfRunLength {
+			break
+		}
 	}
 	return res, nil
 }
@@ -537,22 +564,47 @@ func GetPerfMetricsForCommits(c appengine.Context, builder, benchmark, metric st
 	if startCommitNum < 0 || n <= 0 {
 		return nil, fmt.Errorf("GetPerfMetricsForCommits: invalid args (%v, %v)", startCommitNum, n)
 	}
-	var res []uint64
-	for n > 0 {
-		metrics, err := GetPerfMetricRun(c, builder, benchmark, metric, startCommitNum)
+
+	p := &Package{}
+	t := datastore.NewQuery("PerfMetricRun").
+		Ancestor(p.Key(c)).
+		Filter("Builder =", builder).
+		Filter("Benchmark =", benchmark).
+		Filter("Metric =", metric).
+		Filter("StartCommitNum >=", startCommitNum/PerfRunLength*PerfRunLength).
+		Order("StartCommitNum").
+		Limit(100).
+		Run(c)
+
+	res := make([]uint64, n)
+	for {
+		metrics := new(PerfMetricRun)
+		_, err := t.Next(metrics)
+		if err == datastore.Done {
+			break
+		}
 		if err != nil {
 			return nil, err
 		}
-		idx := startCommitNum - metrics.StartCommitNum
-		cnt := PerfRunLength - idx
-		if cnt > n {
-			cnt = n
+		if metrics.StartCommitNum >= startCommitNum+n {
+			break
 		}
-		for _, v := range metrics.Vals[idx : idx+cnt] {
-			res = append(res, uint64(v))
+		// Calculate start index for copying.
+		i := 0
+		if metrics.StartCommitNum < startCommitNum {
+			i = startCommitNum - metrics.StartCommitNum
 		}
-		startCommitNum += cnt
-		n -= cnt
+		// Calculate end index for copying.
+		e := PerfRunLength
+		if metrics.StartCommitNum+e > startCommitNum+n {
+			e = startCommitNum + n - metrics.StartCommitNum
+		}
+		for ; i < e; i++ {
+			res[metrics.StartCommitNum-startCommitNum+i] = uint64(metrics.Vals[i])
+		}
+		if e != PerfRunLength {
+			break
+		}
 	}
 	return res, nil
 }
@@ -656,6 +708,25 @@ func UpdatePerfConfig(c appengine.Context, r *http.Request, req *PerfRequest) (n
 	return newBenchmark, nil
 }
 
+type MetricList []string
+
+func (l MetricList) Len() int {
+	return len(l)
+}
+
+func (l MetricList) Less(i, j int) bool {
+	bi := strings.HasPrefix(l[i], "build-") || strings.HasPrefix(l[i], "binary-")
+	bj := strings.HasPrefix(l[j], "build-") || strings.HasPrefix(l[j], "binary-")
+	if bi == bj {
+		return l[i] < l[j]
+	}
+	return !bi
+}
+
+func (l MetricList) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
 func collectList(all []string, idx int, second string) (res []string) {
 	m := make(map[string]bool)
 	for _, str := range all {
@@ -667,7 +738,7 @@ func collectList(all []string, idx int, second string) (res []string) {
 			res = append(res, v)
 		}
 	}
-	sort.Strings(res)
+	sort.Sort(MetricList(res))
 	return res
 }
 
@@ -827,10 +898,6 @@ func Packages(c appengine.Context, kind string) ([]*Package, error) {
 	for t := q.Run(c); ; {
 		pkg := new(Package)
 		_, err := t.Next(pkg)
-		if _, ok := err.(*datastore.ErrFieldMismatch); ok {
-			// Some fields have been removed, so it's okay to ignore this error.
-			err = nil
-		}
 		if err == datastore.Done {
 			break
 		} else if err != nil {

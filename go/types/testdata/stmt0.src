@@ -558,7 +558,7 @@ func typeswitches() {
 	case T:
 	case T1 /* ERROR "missing method m" */ :
 	case T2 /* ERROR "wrong type for method m" */ :
-	case I2 /* ERROR "wrong type for method m" */ :
+	case I2 /* STRICT "wrong type for method m" */ : // only an error in strict mode (issue 8561)
 	}
 }
 
@@ -596,7 +596,7 @@ func typeswitch2() {
 	switch A(nil).(type) {
 	case A:
 	case B:
-	case C /* ERROR "cannot have dynamic type" */:
+	case C /* STRICT "cannot have dynamic type" */: // only an error in strict mode (issue 8561)
 	}
 }
 
@@ -620,6 +620,14 @@ func typeswitch3(x interface{}) {
 	case float32, func /* ERROR duplicate case */ (x int):
 	case F:
 	}
+}
+
+func fors1() {
+	for {}
+	var i string
+	_ = i
+	for i := 0; i < 10; i++ {}
+	for i := 0; i < 10; j /* ERROR cannot declare */ := 0 {}
 }
 
 func rangeloops1() {

@@ -77,7 +77,7 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 	haveSummary := false
 
 	if hook := b.c.SummarizePackage; hook != nil {
-		if summary, show0, ok := hook(strings.TrimPrefix(path, "/src/pkg/")); ok {
+		if summary, show0, ok := hook(strings.TrimPrefix(path, "/src/")); ok {
 			hasPkgFiles = true
 			show = show0
 			synopses[0] = summary
@@ -179,8 +179,11 @@ func (c *Corpus) newDirectory(root string, maxDepth int) *Directory {
 	case err != nil:
 		log.Printf("newDirectory(%s): %s", root, err)
 		return nil
-	case !isPkgDir(d):
+	case root != "/" && !isPkgDir(d):
 		log.Printf("newDirectory(%s): not a package directory", root)
+		return nil
+	case root == "/" && !d.IsDir():
+		log.Printf("newDirectory(%s): not a directory", root)
 		return nil
 	}
 	if maxDepth < 0 {
@@ -280,8 +283,10 @@ type DirList struct {
 
 // listing creates a (linear) directory listing from a directory tree.
 // If skipRoot is set, the root directory itself is excluded from the list.
+// If filter is set, only the directory entries whose paths match the filter
+// are included.
 //
-func (root *Directory) listing(skipRoot bool) *DirList {
+func (root *Directory) listing(skipRoot bool, filter func(string) bool) *DirList {
 	if root == nil {
 		return nil
 	}
@@ -306,10 +311,12 @@ func (root *Directory) listing(skipRoot bool) *DirList {
 	}
 
 	// create list
-	list := make([]DirEntry, n)
-	i := 0
+	list := make([]DirEntry, 0, n)
 	for d := range root.iter(skipRoot) {
-		p := &list[i]
+		if filter != nil && !filter(d.Path) {
+			continue
+		}
+		var p DirEntry
 		p.Depth = d.Depth - minDepth
 		p.Height = maxHeight - p.Depth
 		// the path is relative to root.Path - remove the root.Path
@@ -322,7 +329,7 @@ func (root *Directory) listing(skipRoot bool) *DirList {
 		p.Name = d.Name
 		p.HasPkg = d.HasPkg
 		p.Synopsis = d.Synopsis
-		i++
+		list = append(list, p)
 	}
 
 	return &DirList{maxHeight, list}

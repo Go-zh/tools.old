@@ -31,8 +31,14 @@ type Object interface {
 	// String returns a human-readable string of the object.
 	String() string
 
-	// isUsed reports whether the object was marked as 'used'.
-	isUsed() bool
+	// order reflects a package-level object's source order: if object
+	// a is before object b in the source, then a.order() < b.order().
+	// order returns a value > 0 for package-level objects; it returns
+	// 0 for all other objects (including objects in file scopes).
+	order() uint32
+
+	// setOrder sets the order number of the object. It must be > 0.
+	setOrder(uint32)
 
 	// setParent sets the parent scope of the object.
 	setParent(*Scope)
@@ -73,7 +79,7 @@ type object struct {
 	pkg    *Package
 	name   string
 	typ    Type
-	used   bool
+	order_ uint32
 }
 
 func (obj *object) Parent() *Scope { return obj.parent }
@@ -84,9 +90,9 @@ func (obj *object) Type() Type     { return obj.typ }
 func (obj *object) Exported() bool { return ast.IsExported(obj.name) }
 func (obj *object) Id() string     { return Id(obj.pkg, obj.name) }
 func (obj *object) String() string { panic("abstract") }
+func (obj *object) order() uint32  { return obj.order_ }
 
-func (obj *object) isUsed() bool { return obj.used }
-
+func (obj *object) setOrder(order uint32)   { assert(order > 0); obj.order_ = order }
 func (obj *object) setParent(parent *Scope) { obj.parent = parent }
 
 func (obj *object) sameId(pkg *Package, name string) bool {
@@ -114,22 +120,27 @@ func (obj *object) sameId(pkg *Package, name string) bool {
 // A PkgName represents an imported Go package.
 type PkgName struct {
 	object
+	imported *Package
+	used     bool // set if the package was used
 }
 
-func NewPkgName(pos token.Pos, pkg *Package, name string) *PkgName {
-	return &PkgName{object{nil, pos, pkg, name, Typ[Invalid], false}}
+func NewPkgName(pos token.Pos, pkg *Package, name string, imported *Package) *PkgName {
+	return &PkgName{object{nil, pos, pkg, name, Typ[Invalid], 0}, imported, false}
 }
+
+// Imported returns the package that was imported.
+// It is distinct from Pkg(), which is the package containing the import statement.
+func (obj *PkgName) Imported() *Package { return obj.imported }
 
 // A Const represents a declared constant.
 type Const struct {
 	object
-	val exact.Value
-
+	val     exact.Value
 	visited bool // for initialization cycle detection
 }
 
 func NewConst(pos token.Pos, pkg *Package, name string, typ Type, val exact.Value) *Const {
-	return &Const{object: object{nil, pos, pkg, name, typ, false}, val: val}
+	return &Const{object{nil, pos, pkg, name, typ, 0}, val, false}
 }
 
 func (obj *Const) Val() exact.Value { return obj.val }
@@ -140,28 +151,28 @@ type TypeName struct {
 }
 
 func NewTypeName(pos token.Pos, pkg *Package, name string, typ Type) *TypeName {
-	return &TypeName{object{nil, pos, pkg, name, typ, false}}
+	return &TypeName{object{nil, pos, pkg, name, typ, 0}}
 }
 
 // A Variable represents a declared variable (including function parameters and results, and struct fields).
 type Var struct {
 	object
-
 	anonymous bool // if set, the variable is an anonymous struct field, and name is the type name
 	visited   bool // for initialization cycle detection
 	isField   bool // var is struct field
+	used      bool // set if the variable was used
 }
 
 func NewVar(pos token.Pos, pkg *Package, name string, typ Type) *Var {
-	return &Var{object: object{nil, pos, pkg, name, typ, false}}
+	return &Var{object: object{nil, pos, pkg, name, typ, 0}}
 }
 
 func NewParam(pos token.Pos, pkg *Package, name string, typ Type) *Var {
-	return &Var{object: object{nil, pos, pkg, name, typ, true}} // parameters are always 'used'
+	return &Var{object: object{nil, pos, pkg, name, typ, 0}, used: true} // parameters are always 'used'
 }
 
 func NewField(pos token.Pos, pkg *Package, name string, typ Type, anonymous bool) *Var {
-	return &Var{object: object{nil, pos, pkg, name, typ, false}, anonymous: anonymous, isField: true}
+	return &Var{object: object{nil, pos, pkg, name, typ, 0}, anonymous: anonymous, isField: true}
 }
 
 func (obj *Var) Anonymous() bool { return obj.anonymous }
@@ -181,7 +192,7 @@ func NewFunc(pos token.Pos, pkg *Package, name string, sig *Signature) *Func {
 	if sig != nil {
 		typ = sig
 	}
-	return &Func{object{nil, pos, pkg, name, typ, false}}
+	return &Func{object{nil, pos, pkg, name, typ, 0}}
 }
 
 // FullName returns the package- or receiver-type-qualified name of
@@ -199,17 +210,17 @@ func (obj *Func) Scope() *Scope {
 // A Label represents a declared label.
 type Label struct {
 	object
+	used bool // set if the label was used
 }
 
 func NewLabel(pos token.Pos, pkg *Package, name string) *Label {
-	return &Label{object{pos: pos, pkg: pkg, name: name, typ: Typ[Invalid]}}
+	return &Label{object{pos: pos, pkg: pkg, name: name, typ: Typ[Invalid]}, false}
 }
 
 // A Builtin represents a built-in function.
 // Builtins don't have a valid type.
 type Builtin struct {
 	object
-
 	id builtinId
 }
 
@@ -227,7 +238,7 @@ func writeObject(buf *bytes.Buffer, this *Package, obj Object) {
 	switch obj := obj.(type) {
 	case *PkgName:
 		fmt.Fprintf(buf, "package %s", obj.Name())
-		if path := obj.Pkg().path; path != "" && path != obj.Name() {
+		if path := obj.imported.path; path != "" && path != obj.name {
 			fmt.Fprintf(buf, " (%q)", path)
 		}
 		return

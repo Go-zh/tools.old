@@ -13,14 +13,51 @@ import (
 	"code.google.com/p/go.tools/go/types"
 )
 
+// imports is the canonical map of imported packages we need for typechecking.
+// It is created during initialization.
+var imports = make(map[string]*types.Package)
+
+var (
+	stringerMethodType = types.New("func() string")
+	errorType          = types.New("error").Underlying().(*types.Interface)
+	stringerType       = types.New("interface{ String() string }").(*types.Interface)
+	formatterType      *types.Interface
+)
+
+func init() {
+	typ := importType("fmt", "Formatter")
+	if typ != nil {
+		formatterType = typ.Underlying().(*types.Interface)
+	}
+}
+
+// importType returns the type denoted by the qualified identifier
+// path.name, and adds the respective package to the imports map
+// as a side effect.
+func importType(path, name string) types.Type {
+	pkg, err := types.DefaultImport(imports, path)
+	if err != nil {
+		warnf("import failed: %v", err)
+		return nil
+	}
+	if obj, ok := pkg.Scope().Lookup(name).(*types.TypeName); ok {
+		return obj.Type()
+	}
+	warnf("invalid type name %q", name)
+	return nil
+}
+
 func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) error {
 	pkg.defs = make(map[*ast.Ident]types.Object)
 	pkg.uses = make(map[*ast.Ident]types.Object)
 	pkg.spans = make(map[types.Object]Span)
 	pkg.types = make(map[ast.Expr]types.TypeAndValue)
-	// By providing a Config with our own error function, it will continue
-	// past the first error. There is no need for that function to do anything.
 	config := types.Config{
+		// We provide the same packages map for all imports to ensure
+		// that everybody sees identical packages for the given paths.
+		Packages: imports,
+		// By providing a Config with our own error function, it will continue
+		// past the first error. There is no need for that function to do anything.
 		Error: func(error) {},
 	}
 	info := &types.Info{
@@ -62,14 +99,6 @@ func (pkg *Package) isStruct(c *ast.CompositeLit) (bool, string) {
 		return false, ""
 	}
 }
-
-var (
-	stringerMethodType = types.New("func() string")
-	errorType          = types.New("interface{ Error() string }").(*types.Interface)
-	stringerType       = types.New("interface{ String() string }").(*types.Interface)
-	// One day this might work. See issue 6259.
-	// formatterType   = types.New("interface{Format(f fmt.State, c rune)}")
-)
 
 // matchArgType reports an error if printf verb t is not appropriate
 // for operand arg.
@@ -326,7 +355,8 @@ func (f *File) isErrorMethodCall(call *ast.CallExpr) bool {
 // that workaround is no longer necessary.
 // TODO: This could be better once issue 6259 is fixed.
 func (f *File) hasMethod(typ types.Type, name string) bool {
-	obj, _, _ := types.LookupFieldOrMethod(typ, f.pkg.typesPkg, name)
+	// assume we have an addressable variable of type typ
+	obj, _, _ := types.LookupFieldOrMethod(typ, true, f.pkg.typesPkg, name)
 	_, ok := obj.(*types.Func)
 	return ok
 }

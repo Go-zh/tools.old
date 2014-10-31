@@ -112,6 +112,9 @@ func (b *Builder) todo(kinds []string, pkg, goHash string) (kind, rev string, be
 	if resp == nil {
 		return
 	}
+	if *verbose {
+		fmt.Printf("dash resp: %+v\n", *resp)
+	}
 	for _, k := range kinds {
 		if k == resp.Kind {
 			return resp.Kind, resp.Data.Hash, resp.Data.PerfResults, nil
@@ -123,6 +126,9 @@ func (b *Builder) todo(kinds []string, pkg, goHash string) (kind, rev string, be
 
 // recordResult sends build results to the dashboard
 func (b *Builder) recordResult(ok bool, pkg, hash, goHash, buildLog string, runTime time.Duration) error {
+	if !*report {
+		return nil
+	}
 	req := obj{
 		"Builder":     b.name,
 		"PackagePath": pkg,
@@ -158,12 +164,18 @@ type PerfArtifact struct {
 
 // recordPerfResult sends benchmarking results to the dashboard
 func (b *Builder) recordPerfResult(req *PerfResult) error {
+	if !*report {
+		return nil
+	}
 	req.Builder = b.name
 	args := url.Values{"key": {b.key}, "builder": {b.name}}
 	return dash("POST", "perf-result", args, req, nil)
 }
 
 func postCommit(key, pkg string, l *HgLog) error {
+	if !*report {
+		return nil
+	}
 	t, err := time.Parse(time.RFC3339, l.Date)
 	if err != nil {
 		return fmt.Errorf("parsing %q: %v", l.Date, t)
@@ -195,6 +207,9 @@ func dashboardPackages(kind string) []string {
 	if err := dash("GET", "packages", args, nil, &resp); err != nil {
 		log.Println("dashboardPackages:", err)
 		return nil
+	}
+	if *verbose {
+		fmt.Printf("dash resp: %+v\n", resp)
 	}
 	var pkgs []string
 	for _, r := range resp {

@@ -302,7 +302,7 @@
 -->
 	{{end}}
 		<h2 id="pkg-subdirectories">子目录</h2>
-	{{if eq $.Dirname "/src/pkg"}}
+	{{if eq $.Dirname "/src"}}
 		<div id="manual-nav">
 			<dl>
 <!--
@@ -335,7 +335,7 @@
 -->
 	<th style="text-align: left; width: auto">摘要</th>
 	</tr>
-	{{if not (or (eq $.Dirname "/src/pkg") (eq $.Dirname "/src/cmd") $.DirFlat)}}
+	{{if not (or (eq $.Dirname "/src") (eq $.Dirname "/src/cmd") $.DirFlat)}}
 		<tr>
 		<td><a href="..">..</a></td>
 		</tr>
@@ -359,7 +359,7 @@
 	{{end}}
 	</table>
 
-	{{if eq $.Dirname "/src/pkg"}}
+	{{if eq $.Dirname "/src"}}
 <!--
 	<h2 id="other">Other packages</h2>
 
