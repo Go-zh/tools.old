@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"code.google.com/p/go.tools/go/vcs"
+	"golang.org/x/tools/go/vcs"
 )
 
 // Repo represents a mercurial repository.
@@ -47,12 +47,10 @@ func (r *Repo) Clone(path, rev string) (*Repo, error) {
 		if !r.Exists() {
 			downloadPath = r.Master.Repo
 		}
-
-		err := r.Master.VCS.CreateAtRev(path, downloadPath, rev)
-		if err != nil {
-			return err
+		if rev == "" {
+			return r.Master.VCS.Create(path, downloadPath)
 		}
-		return r.Master.VCS.TagSync(path, "")
+		return r.Master.VCS.CreateAtRev(path, downloadPath, rev)
 	})
 	if err != nil {
 		return nil, err
@@ -66,18 +64,27 @@ func (r *Repo) Clone(path, rev string) (*Repo, error) {
 // Export exports the current Repo at revision rev to a new destination.
 func (r *Repo) Export(path, rev string) error {
 	r.Lock()
-	defer r.Unlock()
 
 	downloadPath := r.Path
 	if !r.Exists() {
+		r.Unlock()
 		_, err := r.Clone(path, rev)
 		return err
 	}
 
-	cmd := exec.Command(r.Master.VCS.Cmd, "archive", "-t", "files", "-r", rev, path)
-	cmd.Dir = downloadPath
-	if err := run(cmd); err != nil {
-		return fmt.Errorf("executing %v: %v", cmd.Args, err)
+	switch r.Master.VCS.Cmd {
+	default:
+		r.Unlock()
+		// TODO(adg,cmang): implement Export in go/vcs
+		_, err := r.Clone(path, rev)
+		return err
+	case "hg":
+		defer r.Unlock()
+		cmd := exec.Command(r.Master.VCS.Cmd, "archive", "-t", "files", "-r", rev, path)
+		cmd.Dir = downloadPath
+		if err := run(cmd); err != nil {
+			return fmt.Errorf("executing %v: %v", cmd.Args, err)
+		}
 	}
 	return nil
 }
@@ -88,6 +95,18 @@ func (r *Repo) UpdateTo(hash string) error {
 	r.Lock()
 	defer r.Unlock()
 
+	if r.Master.VCS.Cmd == "git" {
+		cmd := exec.Command("git", "reset", "--hard", hash)
+		var log bytes.Buffer
+		err := run(cmd, runTimeout(*cmdTimeout), runDir(r.Path), allOutput(&log))
+		if err != nil {
+			return fmt.Errorf("Error running git update -C %v: %v ; output=%s", hash, err, log.Bytes())
+		}
+		return nil
+	}
+
+	// Else go down three more levels of abstractions, at
+	// least two of which are broken for git.
 	return timeout(*cmdTimeout, func() error {
 		return r.Master.VCS.TagSync(r.Path, hash)
 	})
@@ -152,23 +171,38 @@ func (r *Repo) Log() ([]HgLog, error) {
 	return logStruct.Log, nil
 }
 
-// FullHash returns the full hash for the given Mercurial revision.
+// FullHash returns the full hash for the given Git or Mercurial revision.
 func (r *Repo) FullHash(rev string) (string, error) {
 	r.Lock()
 	defer r.Unlock()
 
 	var hash string
 	err := timeout(*cmdTimeout, func() error {
-		data, err := r.Master.VCS.LogAtRev(r.Path, rev, "{node}")
-		if err != nil {
-			return err
+		var data []byte
+		// Avoid the vcs package for git, since it's broken
+		// for git, and and we're trying to remove levels of
+		// abstraction which are increasingly getting
+		// difficult to navigate.
+		if r.Master.VCS.Cmd == "git" {
+			cmd := exec.Command("git", "rev-parse", rev)
+			var out bytes.Buffer
+			err := run(cmd, runTimeout(*cmdTimeout), runDir(r.Path), allOutput(&out))
+			data = out.Bytes()
+			if err != nil {
+				return fmt.Errorf("Failed to find FullHash of %q; git rev-parse: %v, %s", rev, err, data)
+			}
+		} else {
+			var err error
+			data, err = r.Master.VCS.LogAtRev(r.Path, rev, "{node}")
+			if err != nil {
+				return err
+			}
 		}
-
 		s := strings.TrimSpace(string(data))
 		if s == "" {
 			return fmt.Errorf("cannot find revision")
 		}
-		if len(s) != 40 {
+		if len(s) != 40 { // correct for both hg and git
 			return fmt.Errorf("%s returned invalid hash: %s", r.Master.VCS, s)
 		}
 		hash = s

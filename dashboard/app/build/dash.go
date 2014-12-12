@@ -13,17 +13,27 @@ import (
 	"appengine"
 )
 
+func handleFunc(path string, h http.HandlerFunc) {
+	for _, d := range dashboards {
+		http.HandleFunc(d.Prefix+path, h)
+	}
+}
+
 // Dashboard describes a unique build dashboard.
 type Dashboard struct {
-	Name     string     // This dashboard's name and namespace
-	RelPath  string     // The relative url path
-	Packages []*Package // The project's packages to build
+	Name      string     // This dashboard's name (eg, "Go")
+	Namespace string     // This dashboard's namespace (eg, "" (default), "Git")
+	Prefix    string     // The path prefix (no trailing /)
+	Packages  []*Package // The project's packages to build
 }
 
 // dashboardForRequest returns the appropriate dashboard for a given URL path.
 func dashboardForRequest(r *http.Request) *Dashboard {
-	if strings.HasPrefix(r.URL.Path, gccgoDash.RelPath) {
+	if strings.HasPrefix(r.URL.Path, gccgoDash.Prefix) {
 		return gccgoDash
+	}
+	if strings.HasPrefix(r.URL.Path, hgDash.Prefix) {
+		return hgDash
 	}
 	return goDash
 }
@@ -31,11 +41,10 @@ func dashboardForRequest(r *http.Request) *Dashboard {
 // Context returns a namespaced context for this dashboard, or panics if it
 // fails to create a new context.
 func (d *Dashboard) Context(c appengine.Context) appengine.Context {
-	// No namespace needed for the original Go dashboard.
-	if d.Name == "Go" {
+	if d.Namespace == "" {
 		return c
 	}
-	n, err := appengine.Namespace(c, d.Name)
+	n, err := appengine.Namespace(c, d.Namespace)
 	if err != nil {
 		panic(err)
 	}
@@ -43,17 +52,19 @@ func (d *Dashboard) Context(c appengine.Context) appengine.Context {
 }
 
 // the currently known dashboards.
-var dashboards = []*Dashboard{goDash, gccgoDash}
+var dashboards = []*Dashboard{goDash, hgDash, gccgoDash}
 
-// goDash is the dashboard for the main go repository.
-var goDash = &Dashboard{
-	Name:     "Go",
-	RelPath:  "/",
-	Packages: goPackages,
+// hgDash is the dashboard for the old Mercural Go repository.
+var hgDash = &Dashboard{
+	Name:      "Mercurial",
+	Namespace: "", // Used to be the default.
+	Prefix:    "/hg",
+	Packages:  hgPackages,
 }
 
-// goPackages is a list of all of the packages built by the main go repository.
-var goPackages = []*Package{
+// hgPackages is a list of all of the packages
+// built by the old Mercurial Go repository.
+var hgPackages = []*Package{
 	{
 		Kind: "go",
 		Name: "Go",
@@ -105,10 +116,77 @@ var goPackages = []*Package{
 	},
 }
 
+// goDash is the dashboard for the main go repository.
+var goDash = &Dashboard{
+	Name:      "Go",
+	Namespace: "Git",
+	Prefix:    "",
+	Packages:  goPackages,
+}
+
+// goPackages is a list of all of the packages built by the main go repository.
+var goPackages = []*Package{
+	{
+		Kind: "go",
+		Name: "Go",
+	},
+	{
+		Kind: "subrepo",
+		Name: "blog",
+		Path: "golang.org/x/blog",
+	},
+	{
+		Kind: "subrepo",
+		Name: "crypto",
+		Path: "golang.org/x/crypto",
+	},
+	{
+		Kind: "subrepo",
+		Name: "exp",
+		Path: "golang.org/x/exp",
+	},
+	{
+		Kind: "subrepo",
+		Name: "image",
+		Path: "golang.org/x/image",
+	},
+	{
+		Kind: "subrepo",
+		Name: "mobile",
+		Path: "golang.org/x/mobile",
+	},
+	{
+		Kind: "subrepo",
+		Name: "net",
+		Path: "golang.org/x/net",
+	},
+	{
+		Kind: "subrepo",
+		Name: "sys",
+		Path: "golang.org/x/sys",
+	},
+	{
+		Kind: "subrepo",
+		Name: "talks",
+		Path: "golang.org/x/talks",
+	},
+	{
+		Kind: "subrepo",
+		Name: "text",
+		Path: "golang.org/x/text",
+	},
+	{
+		Kind: "subrepo",
+		Name: "tools",
+		Path: "golang.org/x/tools",
+	},
+}
+
 // gccgoDash is the dashboard for gccgo.
 var gccgoDash = &Dashboard{
-	Name:    "Gccgo",
-	RelPath: "/gccgo/",
+	Name:      "Gccgo",
+	Namespace: "Gccgo",
+	Prefix:    "/gccgo",
 	Packages: []*Package{
 		{
 			Kind: "gccgo",

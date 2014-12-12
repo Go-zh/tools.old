@@ -3,7 +3,7 @@
 ;;;
 ;;; To install the Go oracle, run:
 ;;; % export GOROOT=... GOPATH=...
-;;; % go get code.google.com/p/go.tools/cmd/oracle
+;;; % go get golang.org/x/tools/cmd/oracle
 ;;; % mv $GOPATH/bin/oracle $GOROOT/bin/
 ;;;
 ;;; Load this file into Emacs and set go-oracle-scope to your
@@ -212,6 +212,12 @@ this channel receive/send operation."
 identifier."
   (interactive)
   (go-oracle--run "referrers"))
+
+(defun go-oracle-whicherrs ()
+  "Show globals, constants and types to which the selected
+expression (of type 'error') may refer."
+  (interactive)
+  (go-oracle--run "whicherrs"))
 
 ;; TODO(dominikh): better docstring
 (define-minor-mode go-oracle-mode "Oracle minor mode for go-mode

@@ -15,7 +15,7 @@ import (
 	"runtime"
 	"strings"
 
-	"code.google.com/p/go.tools/go/vcs"
+	"golang.org/x/tools/go/vcs"
 )
 
 // builderEnv represents the environment that a Builder will run tests in.
@@ -125,8 +125,12 @@ func (env *goEnv) setup(repo *Repo, workpath, hash string, envv []string) (strin
 	if err := repo.Export(goworkpath, hash); err != nil {
 		return "", fmt.Errorf("error exporting repository: %s", err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(goworkpath, "VERSION"), []byte(hash), 0644); err != nil {
-		return "", fmt.Errorf("error writing VERSION file: %s", err)
+	// Write out VERSION file if it does not already exist.
+	vFile := filepath.Join(goworkpath, "VERSION")
+	if _, err := os.Stat(vFile); os.IsNotExist(err) {
+		if err := ioutil.WriteFile(vFile, []byte(hash), 0644); err != nil {
+			return "", fmt.Errorf("error writing VERSION file: %s", err)
+		}
 	}
 	return filepath.Join(goworkpath, "src"), nil
 }
@@ -149,7 +153,32 @@ func (env *gccgoEnv) setup(repo *Repo, workpath, hash string, envv []string) (st
 	if _, err := os.Stat(gccpath); err != nil {
 		if err := timeout(*cmdTimeout, func() error {
 			// pull down a working copy of GCC.
-			return git.Create(gccpath, *gccPath)
+
+			cloneCmd := []string{
+				"clone",
+				// This is just a guess since there are ~6000 commits to
+				// GCC per year. It's likely there will be enough history
+				// to cross-reference the Gofrontend commit against GCC.
+				// The disadvantage would be if the commit being built is more than
+				// a year old; in this case, the user should make a clone that has
+				// the full history.
+				"--depth", "6000",
+				// We only care about the master branch.
+				"--branch", "master", "--single-branch",
+				*gccPath,
+			}
+
+			// Clone Kind			Clone Time(Dry run)	Clone Size
+			// ---------------------------------------------------------------
+			// Full Clone			10 - 15 min		2.2 GiB
+			// Master Branch		2 - 3 min		1.5 GiB
+			// Full Clone(shallow)		1 min			900 MiB
+			// Master Branch(shallow)	40 sec			900 MiB
+			//
+			// The shallow clones have the same size, which is expected,
+			// but the full shallow clone will only have 6000 commits
+			// spread across all branches.  There are ~50 branches.
+			return run(exec.Command("git", cloneCmd...), runEnv(envv), allOutput(os.Stdout), runDir(repo.Path))
 		}); err != nil {
 			return "", err
 		}
@@ -236,7 +265,7 @@ func (env *gccgoEnv) setup(repo *Repo, workpath, hash string, envv []string) (st
 	}
 
 	// build gcc
-	if err := run(exec.Command("make"), runTimeout(*buildTimeout), runEnv(envv), runDir(gccobjdir)); err != nil {
+	if err := run(exec.Command("make", *gccOpts), runTimeout(*buildTimeout), runEnv(envv), runDir(gccobjdir)); err != nil {
 		return "", fmt.Errorf("Failed to build GCC: %s", err)
 	}
 

@@ -3,9 +3,9 @@
 // license that can be found in the LICENSE file.
 
 // Package rename contains the implementation of the 'gorename' command
-// whose main function is in code.google.com/p/go.tools/refactor/rename.
+// whose main function is in golang.org/x/tools/refactor/rename.
 // See that package for the command documentation.
-package rename
+package rename // import "golang.org/x/tools/refactor/rename"
 
 import (
 	"errors"
@@ -20,10 +20,10 @@ import (
 	"sort"
 	"strings"
 
-	"code.google.com/p/go.tools/go/loader"
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/refactor/importgraph"
-	"code.google.com/p/go.tools/refactor/satisfy"
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/types"
+	"golang.org/x/tools/refactor/importgraph"
+	"golang.org/x/tools/refactor/satisfy"
 )
 
 var (
@@ -50,6 +50,8 @@ type renamer struct {
 	to                 string
 	satisfyConstraints map[satisfy.Constraint]bool
 	packages           map[*types.Package]*loader.PackageInfo // subset of iprog.AllPackages to inspect
+	msets              types.MethodSetCache
+	changeMethods      bool
 }
 
 var reportError = func(posn token.Position, message string) {
@@ -149,6 +151,19 @@ func Main(ctxt *build.Context, offsetFlag, fromFlag, to string) error {
 		objsToUpdate: make(map[types.Object]bool),
 		to:           to,
 		packages:     make(map[*types.Package]*loader.PackageInfo),
+	}
+
+	// A renaming initiated at an interface method indicates the
+	// intention to rename abstract and concrete methods as needed
+	// to preserve assignability.
+	for _, obj := range fromObjects {
+		if obj, ok := obj.(*types.Func); ok {
+			recv := obj.Type().(*types.Signature).Recv()
+			if recv != nil && isInterface(recv.Type().Underlying()) {
+				r.changeMethods = true
+				break
+			}
+		}
 	}
 
 	// Only the initially imported packages (iprog.Imported) and
@@ -281,7 +296,7 @@ func (r *renamer) update() error {
 					}
 				}
 				if err := rewriteFile(r.iprog.Fset, f, tokenFile.Name()); err != nil {
-					fmt.Fprintf(os.Stderr, "Error: %s.\n", err)
+					fmt.Fprintf(os.Stderr, "gorename: %s\n", err)
 					nerrs++
 				}
 			}
@@ -304,16 +319,23 @@ func plural(n int) string {
 	return ""
 }
 
-func writeFile(name string, fset *token.FileSet, f *ast.File) error {
-	out, err := os.Create(name)
+func writeFile(name string, fset *token.FileSet, f *ast.File, mode os.FileMode) error {
+	out, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		// assume error includes the filename
 		return fmt.Errorf("failed to open file: %s", err)
 	}
+
+	// Oddly, os.OpenFile doesn't preserve all the mode bits, hence
+	// this chmod.  (We use 0600 above to avoid a brief
+	// vulnerability if the user has an insecure umask.)
+	os.Chmod(name, mode) // ignore error
+
 	if err := format.Node(out, fset, f); err != nil {
 		out.Close() // ignore error
 		return fmt.Errorf("failed to write file: %s", err)
 	}
+
 	return out.Close()
 }
 
@@ -324,11 +346,16 @@ var rewriteFile = func(fset *token.FileSet, f *ast.File, orig string) (err error
 	if Verbose {
 		fmt.Fprintf(os.Stderr, "\t%s\n", orig)
 	}
+	// save file mode
+	var mode os.FileMode = 0666
+	if fi, err := os.Stat(orig); err == nil {
+		mode = fi.Mode()
+	}
 	if err := os.Rename(orig, backup); err != nil {
 		return fmt.Errorf("failed to make backup %s -> %s: %s",
 			orig, filepath.Base(backup), err)
 	}
-	if err := writeFile(orig, fset, f); err != nil {
+	if err := writeFile(orig, fset, f, mode); err != nil {
 		// Restore the file from the backup.
 		os.Remove(orig)         // ignore error
 		os.Rename(backup, orig) // ignore error

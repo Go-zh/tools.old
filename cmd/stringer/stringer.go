@@ -56,7 +56,7 @@
 // where t is the lower-cased name of the first type listed. It can be overridden
 // with the -output flag.
 //
-package main
+package main // import "golang.org/x/tools/cmd/stringer"
 
 import (
 	"bytes"
@@ -74,10 +74,10 @@ import (
 	"sort"
 	"strings"
 
-	"code.google.com/p/go.tools/go/exact"
-	"code.google.com/p/go.tools/go/types"
+	"golang.org/x/tools/go/exact"
+	"golang.org/x/tools/go/types"
 
-	_ "code.google.com/p/go.tools/go/gcimporter"
+	_ "golang.org/x/tools/go/gcimporter"
 )
 
 var (
@@ -91,7 +91,7 @@ func Usage() {
 	fmt.Fprintf(os.Stderr, "\tstringer [flags] -type T [directory]\n")
 	fmt.Fprintf(os.Stderr, "\tstringer [flags[ -type T files... # Must be a single package\n")
 	fmt.Fprintf(os.Stderr, "For more information, see:\n")
-	fmt.Fprintf(os.Stderr, "\thttp://godoc.org/code.google.com/p/go.tools/cmd/stringer\n")
+	fmt.Fprintf(os.Stderr, "\thttp://godoc.org/golang.org/x/tools/cmd/stringer\n")
 	fmt.Fprintf(os.Stderr, "Flags:\n")
 	flag.PrintDefaults()
 	os.Exit(2)
@@ -261,7 +261,7 @@ func (g *Generator) parsePackage(directory string, names []string, text interfac
 // check type-checks the package. The package must be OK to proceed.
 func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) {
 	pkg.defs = make(map[*ast.Ident]types.Object)
-	var config types.Config
+	config := types.Config{FakeImportC: true}
 	info := &types.Info{
 		Defs: pkg.defs,
 	}

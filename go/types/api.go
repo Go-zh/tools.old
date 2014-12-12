@@ -20,7 +20,7 @@
 // and checks for compliance with the language specification.
 // Use Info.Types[expr].Type for the results of type inference.
 //
-package types
+package types // import "golang.org/x/tools/go/types"
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"code.google.com/p/go.tools/go/exact"
+	"golang.org/x/tools/go/exact"
 )
 
 // Check type-checks a package and returns the resulting complete package
@@ -118,7 +118,7 @@ type Config struct {
 // DefaultImport is the default importer invoked if Config.Import == nil.
 // The declaration:
 //
-//	import _ "code.google.com/p/go.tools/go/gcimporter"
+//	import _ "golang.org/x/tools/go/gcimporter"
 //
 // in a client of go/types will initialize DefaultImport to gcimporter.Import.
 var DefaultImport Importer
@@ -215,8 +215,10 @@ func (info *Info) TypeOf(e ast.Expr) Type {
 	if t, ok := info.Types[e]; ok {
 		return t.Type
 	}
-	if id, ok := e.(*ast.Ident); ok {
-		return info.ObjectOf(id).Type()
+	if id, _ := e.(*ast.Ident); id != nil {
+		if obj := info.ObjectOf(id); obj != nil {
+			return obj.Type()
+		}
 	}
 	return nil
 }
@@ -230,7 +232,7 @@ func (info *Info) TypeOf(e ast.Expr) Type {
 // Precondition: the Uses and Defs maps are populated.
 //
 func (info *Info) ObjectOf(id *ast.Ident) Object {
-	if obj, ok := info.Defs[id]; ok {
+	if obj, _ := info.Defs[id]; obj != nil {
 		return obj
 	}
 	return info.Uses[id]

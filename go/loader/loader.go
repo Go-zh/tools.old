@@ -73,7 +73,7 @@
 // DEPENDENCY is a package loaded to satisfy an import in an initial
 // package or another dependency.
 //
-package loader
+package loader // import "golang.org/x/tools/go/loader"
 
 // 'go test', in-package test files, and import cycles
 // ---------------------------------------------------
@@ -136,9 +136,9 @@ import (
 	"os"
 	"strings"
 
-	"code.google.com/p/go.tools/astutil"
-	"code.google.com/p/go.tools/go/gcimporter"
-	"code.google.com/p/go.tools/go/types"
+	"golang.org/x/tools/astutil"
+	"golang.org/x/tools/go/gcimporter"
+	"golang.org/x/tools/go/types"
 )
 
 // Config specifies the configuration for a program to load.
@@ -297,6 +297,7 @@ func (conf *Config) fset() *token.FileSet {
 // the Config's FileSet, which is initialized if nil.
 //
 func (conf *Config) ParseFile(filename string, src interface{}) (*ast.File, error) {
+	// TODO(adonovan): use conf.build() etc like parseFiles does.
 	return parser.ParseFile(conf.fset(), filename, src, conf.ParserMode)
 }
 

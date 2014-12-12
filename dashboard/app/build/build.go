@@ -94,6 +94,7 @@ type Commit struct {
 	Time              time.Time
 	NeedsBenchmarking bool
 	TryPatch          bool
+	Branch            string
 
 	// ResultData is the Data string of each build Result for this Commit.
 	// For non-Go commits, only the Results for the current Go tip, weekly,
@@ -154,7 +155,7 @@ func (com *Commit) AddResult(c appengine.Context, r *Result) error {
 	var resultExists bool
 	for i, s := range com.ResultData {
 		// if there already exists result data for this builder at com, overwrite it.
-		if strings.Contains(s, r.Builder) {
+		if strings.HasPrefix(s, r.Builder+"|") && strings.HasSuffix(s, "|"+r.GoHash) {
 			resultExists = true
 			com.ResultData[i] = r.Data()
 		}

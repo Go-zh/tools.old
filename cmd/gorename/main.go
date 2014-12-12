@@ -1,7 +1,7 @@
 // The gorename command performs precise type-safe renaming of
 // identifiers in Go source code.  See the -help message or Usage
 // constant for details.
-package main
+package main // import "golang.org/x/tools/cmd/gorename"
 
 import (
 	"flag"
@@ -10,7 +10,7 @@ import (
 	"os"
 	"runtime"
 
-	"code.google.com/p/go.tools/refactor/rename"
+	"golang.org/x/tools/refactor/rename"
 )
 
 var (
@@ -73,11 +73,13 @@ affected.  For a local renaming, this is just the package specified by
 -from or -offset, but for a potentially exported name, gorename scans
 the workspace ($GOROOT and $GOPATH).
 
+gorename rejects renamings of concrete methods that would change the
+assignability relation between types and interfaces.  If the interface
+change was intentional, initiate the renaming at the interface method.
+
 gorename rejects any renaming that would create a conflict at the point
 of declaration, or a reference conflict (ambiguity or shadowing), or
 anything else that could cause the resulting program not to compile.
-Currently, it also rejects any method renaming that would change the
-assignability relation between types and interfaces.
 
 
 Examples:
@@ -86,7 +88,7 @@ Examples:
 
   Rename the object whose identifier is at byte offset 123 within file file.go.
 
-% gorename -from '(bytes.Buffer).Len' -to Size
+% gorename -from '"bytes".Buffer.Len' -to Size
 
   Rename the "Len" method of the *bytes.Buffer type to "Size".
 
@@ -98,6 +100,7 @@ Correctness:
 - sketch a proof of exhaustiveness.
 
 Features:
+- support running on packages specified as *.go files on the command line
 - support running on programs containing errors (loader.Config.AllowErrors)
 - allow users to specify a scope other than "global" (to avoid being
   stuck by neglected packages in $GOPATH that don't build).
@@ -114,13 +117,12 @@ Features:
   all local variables of a given type,
   all PkgNames for a given package.
 - emit JSON output for other editors and tools.
-- integration with editors other than Emacs.
 `
 
 func main() {
 	flag.Parse()
 	if len(flag.Args()) > 0 {
-		fmt.Fprintf(os.Stderr, "Error: surplus arguments.\n")
+		fmt.Fprintln(os.Stderr, "gorename: surplus arguments.")
 		os.Exit(1)
 	}
 
@@ -131,7 +133,7 @@ func main() {
 
 	if err := rename.Main(&build.Default, *offsetFlag, *fromFlag, *toFlag); err != nil {
 		if err != rename.ConflictError {
-			fmt.Fprintf(os.Stderr, "Error: %s.\n", err)
+			fmt.Fprintf(os.Stderr, "gorename: %s\n", err)
 		}
 		os.Exit(1)
 	}

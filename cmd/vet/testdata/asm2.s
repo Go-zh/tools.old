@@ -8,7 +8,7 @@
 TEXT ·arg1(SB),0,$0-2
 	MOVB	x+0(FP), AX
 	MOVB	y+1(FP), BX
-	MOVW	x+0(FP), AX // ERROR "\[386\] invalid MOVW of x\+0\(FP\); int8 is 1-byte value"
+	MOVW	x+0(FP), AX // ERROR "\[386\] arg1: invalid MOVW of x\+0\(FP\); int8 is 1-byte value"
 	MOVW	y+1(FP), AX // ERROR "invalid MOVW of y\+1\(FP\); uint8 is 1-byte value"
 	MOVL	x+0(FP), AX // ERROR "invalid MOVL of x\+0\(FP\); int8 is 1-byte value"
 	MOVL	y+1(FP), AX // ERROR "invalid MOVL of y\+1\(FP\); uint8 is 1-byte value"
@@ -26,10 +26,13 @@ TEXT ·arg1(SB),0,$0-2
 	TESTQ	y+1(FP), AX // ERROR "invalid TESTQ of y\+1\(FP\); uint8 is 1-byte value"
 	TESTB	x+1(FP), AX // ERROR "invalid offset x\+1\(FP\); expected x\+0\(FP\)"
 	TESTB	y+2(FP), AX // ERROR "invalid offset y\+2\(FP\); expected y\+1\(FP\)"
+	MOVB	4(SP), AX // ERROR "4\(SP\) should be x\+0\(FP\)"
+	MOVB	5(SP), AX // ERROR "5\(SP\) should be y\+1\(FP\)"
+	MOVB	6(SP), AX // ERROR "use of 6\(SP\) points beyond argument frame"
 	RET
 
 TEXT ·arg2(SB),0,$0-4
-	MOVB	x+0(FP), AX // ERROR "invalid MOVB of x\+0\(FP\); int16 is 2-byte value"
+	MOVB	x+0(FP), AX // ERROR "arg2: invalid MOVB of x\+0\(FP\); int16 is 2-byte value"
 	MOVB	y+2(FP), AX // ERROR "invalid MOVB of y\+2\(FP\); uint16 is 2-byte value"
 	MOVW	x+0(FP), AX
 	MOVW	y+2(FP), BX
@@ -51,7 +54,7 @@ TEXT ·arg2(SB),0,$0-4
 	TESTW	y+0(FP), AX // ERROR "invalid offset y\+0\(FP\); expected y\+2\(FP\)"
 	RET
 
-TEXT ·arg4(SB),0,$0-2 // ERROR "wrong argument size 2; expected \$\.\.\.-8"
+TEXT ·arg4(SB),0,$0-2 // ERROR "arg4: wrong argument size 2; expected \$\.\.\.-8"
 	MOVB	x+0(FP), AX // ERROR "invalid MOVB of x\+0\(FP\); int32 is 4-byte value"
 	MOVB	y+4(FP), BX // ERROR "invalid MOVB of y\+4\(FP\); uint32 is 4-byte value"
 	MOVW	x+0(FP), AX // ERROR "invalid MOVW of x\+0\(FP\); int32 is 4-byte value"
@@ -249,3 +252,6 @@ TEXT ·returnnamed(SB),0,$0-21
 	MOVB	AX, r4+20(FP)
 	MOVQ	AX, r1+4(FP) // ERROR "invalid MOVQ of r1\+4\(FP\); int is 4-byte value"
 	RET
+
+TEXT ·returnintmissing(SB),0,$0-4
+	RET // ERROR "RET without writing to 4-byte ret\+0\(FP\)"

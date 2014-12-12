@@ -42,7 +42,7 @@
 //
 // * os.Exit is implemented using panic, causing deferred functions to
 // run.
-package interp
+package interp // import "golang.org/x/tools/go/ssa/interp"
 
 import (
 	"fmt"
@@ -51,8 +51,8 @@ import (
 	"reflect"
 	"runtime"
 
-	"code.google.com/p/go.tools/go/ssa"
-	"code.google.com/p/go.tools/go/types"
+	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/types"
 )
 
 type continuation int

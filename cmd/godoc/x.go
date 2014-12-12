@@ -17,19 +17,26 @@ import (
 
 const xPrefix = "/x/"
 
-var xMap = map[string]string{
-	"benchmarks": "https://code.google.com/p/go.benchmarks",
-	"blog":       "https://code.google.com/p/go.blog",
-	"codereview": "https://code.google.com/p/go.codereview",
-	"crypto":     "https://code.google.com/p/go.crypto",
-	"exp":        "https://code.google.com/p/go.exp",
-	"image":      "https://code.google.com/p/go.image",
-	"mobile":     "https://code.google.com/p/go.mobile",
-	"net":        "https://code.google.com/p/go.net",
-	"sys":        "https://code.google.com/p/go.sys",
-	"talks":      "https://code.google.com/p/go.talks",
-	"text":       "https://code.google.com/p/go.text",
-	"tools":      "https://code.google.com/p/go.tools",
+type xRepo struct {
+	URL, VCS string
+}
+
+var xMap = map[string]xRepo{
+	"codereview": {"https://code.google.com/p/go.codereview", "hg"},
+
+	"benchmarks": {"https://go.googlesource.com/benchmarks", "git"},
+	"blog":       {"https://go.googlesource.com/blog", "git"},
+	"crypto":     {"https://go.googlesource.com/crypto", "git"},
+	"exp":        {"https://go.googlesource.com/exp", "git"},
+	"image":      {"https://go.googlesource.com/image", "git"},
+	"mobile":     {"https://go.googlesource.com/mobile", "git"},
+	"net":        {"https://go.googlesource.com/net", "git"},
+	"oauth2":     {"https://go.googlesource.com/oauth2", "git"},
+	"review":     {"https://go.googlesource.com/review", "git"},
+	"sys":        {"https://go.googlesource.com/sys", "git"},
+	"talks":      {"https://go.googlesource.com/talks", "git"},
+	"text":       {"https://go.googlesource.com/text", "git"},
+	"tools":      {"https://go.googlesource.com/tools", "git"},
 }
 
 func init() {
@@ -47,7 +54,8 @@ func xHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := struct {
-		Prefix, Head, Tail, Repo string
+		Prefix, Head, Tail string
+		Repo               xRepo
 	}{xPrefix, head, tail, repo}
 	if err := xTemplate.Execute(w, data); err != nil {
 		log.Println("xHandler:", err)
@@ -58,7 +66,7 @@ var xTemplate = template.Must(template.New("x").Parse(`<!DOCTYPE html>
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-<meta name="go-import" content="golang.org{{.Prefix}}{{.Head}} hg {{.Repo}}">
+<meta name="go-import" content="golang.org{{.Prefix}}{{.Head}} {{.Repo.VCS}} {{.Repo.URL}}">
 <meta http-equiv="refresh" content="0; url=https://godoc.org/golang.org{{.Prefix}}{{.Head}}{{.Tail}}">
 </head>
 <body>

@@ -26,8 +26,11 @@ import (
 	"key"
 )
 
-const commitsPerPage = 30
-const watcherVersion = 2
+const (
+	commitsPerPage = 30
+	watcherVersion = 3 // must match dashboard/watcher/watcher.go
+	builderVersion = 1 // must match dashboard/builder/http.go
+)
 
 // commitHandler retrieves commit data or records a new commit.
 //
@@ -85,10 +88,9 @@ func commitHandler(r *http.Request) (interface{}, error) {
 		return nil, errors.New("can only POST commits with master key")
 	}
 
-	// For now, the commit watcher doesn't support gccgo,
-	// so only do this check for Go commits.
-	// TODO(adg,cmang): remove this check when gccgo is supported.
-	if dashboardForRequest(r) == goDash {
+	// For now, the commit watcher doesn't support gccgo.
+	// TODO(adg,cmang): remove this exception when gccgo is supported.
+	if dashboardForRequest(r) != gccgoDash {
 		v, _ := strconv.Atoi(r.FormValue("version"))
 		if v != watcherVersion {
 			return nil, fmt.Errorf("rejecting POST from commit watcher; need version %v", watcherVersion)
@@ -183,6 +185,11 @@ func addCommit(c appengine.Context, com *Commit) error {
 		if n == 0 {
 			return errors.New("parent commit not found")
 		}
+	} else if com.Num != 1 {
+		// This is the first commit; fail if it is not number 1.
+		// (This will happen if we try to upload a new/different repo
+		// where there is already commit data. A bad thing to do.)
+		return errors.New("this package already has a first commit; aborting")
 	}
 	// update the tip Tag if this is the Go repo and this isn't on a release branch
 	if p.Path == "" && !strings.HasPrefix(com.Desc, "[") && !isUpdate {
@@ -519,6 +526,15 @@ func resultHandler(r *http.Request) (interface{}, error) {
 		return nil, errBadMethod(r.Method)
 	}
 
+	// For now, the gccgo builders are using the old stuff.
+	// TODO(adg,cmang): remove this exception when gccgo is updated.
+	if dashboardForRequest(r) != gccgoDash {
+		v, _ := strconv.Atoi(r.FormValue("version"))
+		if v != builderVersion {
+			return nil, fmt.Errorf("rejecting POST from builder; need version %v", builderVersion)
+		}
+	}
+
 	c := contextForRequest(r)
 	res := new(Result)
 	defer r.Body.Close()
@@ -841,22 +857,20 @@ func keyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func init() {
-	for _, d := range dashboards {
-		// admin handlers
-		http.HandleFunc(d.RelPath+"init", initHandler)
-		http.HandleFunc(d.RelPath+"key", keyHandler)
+	// admin handlers
+	handleFunc("/init", initHandler)
+	handleFunc("/key", keyHandler)
 
-		// authenticated handlers
-		http.HandleFunc(d.RelPath+"commit", AuthHandler(commitHandler))
-		http.HandleFunc(d.RelPath+"packages", AuthHandler(packagesHandler))
-		http.HandleFunc(d.RelPath+"result", AuthHandler(resultHandler))
-		http.HandleFunc(d.RelPath+"perf-result", AuthHandler(perfResultHandler))
-		http.HandleFunc(d.RelPath+"tag", AuthHandler(tagHandler))
-		http.HandleFunc(d.RelPath+"todo", AuthHandler(todoHandler))
+	// authenticated handlers
+	handleFunc("/commit", AuthHandler(commitHandler))
+	handleFunc("/packages", AuthHandler(packagesHandler))
+	handleFunc("/result", AuthHandler(resultHandler))
+	handleFunc("/perf-result", AuthHandler(perfResultHandler))
+	handleFunc("/tag", AuthHandler(tagHandler))
+	handleFunc("/todo", AuthHandler(todoHandler))
 
-		// public handlers
-		http.HandleFunc(d.RelPath+"log/", logHandler)
-	}
+	// public handlers
+	handleFunc("/log/", logHandler)
 }
 
 func validHash(hash string) bool {

@@ -8,7 +8,7 @@
 //
 // Run with -help flag or help subcommand for usage information.
 //
-package main
+package main // import "golang.org/x/tools/cmd/oracle"
 
 import (
 	"bufio"
@@ -23,8 +23,8 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"code.google.com/p/go.tools/go/loader"
-	"code.google.com/p/go.tools/oracle"
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/oracle"
 )
 
 var posFlag = flag.String("pos", "",
@@ -60,17 +60,18 @@ The mode argument determines the query to perform:
 	callstack 	show path from callgraph root to selected function
 	describe  	describe selected syntax: definition, methods, etc
 	freevars  	show free variables of selection
-	implements	show 'implements' relation for selected package
+	implements	show 'implements' relation for selected type
 	peers     	show send/receive corresponding to selected channel op
 	referrers 	show all refs to entity denoted by selected identifier
+	what		show basic information about the selected syntax node
 
 The user manual is available here:  http://golang.org/s/oracle-user-manual
 
 Examples:
 
 Describe the syntax at offset 530 in this file (an import spec):
-% oracle -pos=src/code.google.com/p/go.tools/cmd/oracle/main.go:#530 describe \
-   code.google.com/p/go.tools/cmd/oracle
+% oracle -pos=src/golang.org/x/tools/cmd/oracle/main.go:#530 describe \
+   golang.org/x/tools/cmd/oracle
 
 Print the callgraph of the trivial web-server in JSON format:
 % oracle -format=json $GOROOT/src/net/http/triv.go callgraph
@@ -111,7 +112,7 @@ func main() {
 
 	args := flag.Args()
 	if len(args) == 0 || args[0] == "" {
-		fmt.Fprint(os.Stderr, "Error: a mode argument is required.\n"+useHelp)
+		fmt.Fprint(os.Stderr, "oracle: a mode argument is required.\n"+useHelp)
 		os.Exit(2)
 	}
 
@@ -123,7 +124,7 @@ func main() {
 	}
 
 	if len(args) == 0 && mode != "what" {
-		fmt.Fprint(os.Stderr, "Error: no package arguments.\n"+useHelp)
+		fmt.Fprint(os.Stderr, "oracle: no package arguments.\n"+useHelp)
 		os.Exit(2)
 	}
 
@@ -157,14 +158,14 @@ func main() {
 	case "json", "plain", "xml":
 		// ok
 	default:
-		fmt.Fprintf(os.Stderr, "Error: illegal -format value: %q.\n"+useHelp, *formatFlag)
+		fmt.Fprintf(os.Stderr, "oracle: illegal -format value: %q.\n"+useHelp, *formatFlag)
 		os.Exit(2)
 	}
 
 	// Ask the oracle.
 	res, err := oracle.Query(args, mode, *posFlag, ptalog, &build.Default, *reflectFlag)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s.\n", err)
+		fmt.Fprintf(os.Stderr, "oracle: %s.\n", err)
 		os.Exit(1)
 	}
 
@@ -173,7 +174,7 @@ func main() {
 	case "json":
 		b, err := json.MarshalIndent(res.Serial(), "", "\t")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "JSON error: %s.\n", err)
+			fmt.Fprintf(os.Stderr, "oracle: JSON error: %s.\n", err)
 			os.Exit(1)
 		}
 		os.Stdout.Write(b)
@@ -181,7 +182,7 @@ func main() {
 	case "xml":
 		b, err := xml.MarshalIndent(res.Serial(), "", "\t")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "XML error: %s.\n", err)
+			fmt.Fprintf(os.Stderr, "oracle: XML error: %s.\n", err)
 			os.Exit(1)
 		}
 		os.Stdout.Write(b)

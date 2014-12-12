@@ -13,12 +13,12 @@ import (
 	"os"
 	"strings"
 
-	"code.google.com/p/go.tools/astutil"
-	"code.google.com/p/go.tools/go/exact"
-	"code.google.com/p/go.tools/go/loader"
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/go/types/typeutil"
-	"code.google.com/p/go.tools/oracle/serial"
+	"golang.org/x/tools/astutil"
+	"golang.org/x/tools/go/exact"
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/types"
+	"golang.org/x/tools/go/types/typeutil"
+	"golang.org/x/tools/oracle/serial"
 )
 
 // describe describes the syntax node denoted by the query position,
@@ -465,6 +465,9 @@ func (r *describeTypeResult) display(printf printfFunc) {
 		if len(r.methods) > 0 {
 			printf(r.node, "Method set:")
 			for _, meth := range r.methods {
+				// TODO(adonovan): print these relative
+				// to the owning package, not the
+				// query package.
 				printf(meth.Obj(), "\t%s", r.qpos.SelectionString(meth))
 			}
 		} else {

@@ -26,7 +26,7 @@ import (
 )
 
 func init() {
-	http.HandleFunc("/buildtest", testHandler)
+	handleFunc("/buildtest", testHandler)
 }
 
 var testEntityKinds = []string{
@@ -41,7 +41,7 @@ var testEntityKinds = []string{
 	"Log",
 }
 
-const testPkg = "code.google.com/p/go.test"
+const testPkg = "golang.org/x/test"
 
 var testPackage = &Package{Name: "Test", Kind: "subrepo", Path: testPkg}
 

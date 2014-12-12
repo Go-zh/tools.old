@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Package util contains utility types and functions for godoc.
-package util
+package util // import "golang.org/x/tools/godoc/util"
 
 import (
 	pathpkg "path"
@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"code.google.com/p/go-zh.tools/godoc/vfs"
+	"golang.org/x/tools/godoc/vfs"
 )
 
 // An RWValue wraps a value and permits mutually exclusive

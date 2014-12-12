@@ -3,12 +3,12 @@
 // license that can be found in the LICENSE file.
 
 // Package oracle contains the implementation of the oracle tool whose
-// command-line is provided by code.google.com/p/go.tools/cmd/oracle.
+// command-line is provided by golang.org/x/tools/cmd/oracle.
 //
 // http://golang.org/s/oracle-design
 // http://golang.org/s/oracle-user-manual
 //
-package oracle
+package oracle // import "golang.org/x/tools/oracle"
 
 // This file defines oracle.Query, the entry point for the oracle tool.
 // The actual executable is defined in cmd/oracle.
@@ -56,12 +56,12 @@ import (
 	"go/token"
 	"io"
 
-	"code.google.com/p/go.tools/astutil"
-	"code.google.com/p/go.tools/go/loader"
-	"code.google.com/p/go.tools/go/pointer"
-	"code.google.com/p/go.tools/go/ssa"
-	"code.google.com/p/go.tools/go/types"
-	"code.google.com/p/go.tools/oracle/serial"
+	"golang.org/x/tools/astutil"
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/pointer"
+	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/types"
+	"golang.org/x/tools/oracle/serial"
 )
 
 // An Oracle holds the program state required for one or more queries.
@@ -101,6 +101,7 @@ var modes = []*modeInfo{
 	{"callstack", needPTA | needPos, callstack},
 	{"peers", needPTA | needSSADebug | needPos, peers},
 	{"pointsto", needPTA | needSSADebug | needExactPos, pointsto},
+	{"whicherrs", needPTA | needSSADebug | needExactPos, whicherrs},
 
 	// Type-based, modular analyses:
 	{"definition", needPos, definition},

@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // ssadump: a tool for displaying and interpreting the SSA form of Go programs.
-package main
+package main // import "golang.org/x/tools/cmd/ssadump"
 
 import (
 	"flag"
@@ -13,10 +13,10 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"code.google.com/p/go.tools/go/loader"
-	"code.google.com/p/go.tools/go/ssa"
-	"code.google.com/p/go.tools/go/ssa/interp"
-	"code.google.com/p/go.tools/go/types"
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/ssa/interp"
+	"golang.org/x/tools/go/types"
 )
 
 var buildFlag = flag.String("build", "", `Options controlling the SSA builder.
@@ -74,7 +74,7 @@ func init() {
 
 func main() {
 	if err := doMain(); err != nil {
-		fmt.Fprintf(os.Stderr, "ssadump: %s.\n", err)
+		fmt.Fprintf(os.Stderr, "ssadump: %s\n", err)
 		os.Exit(1)
 	}
 }

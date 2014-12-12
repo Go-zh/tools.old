@@ -1,5 +1,7 @@
 // The eg command performs example-based refactoring.
-package main
+// For documentation, run the command, or see Help in
+// code.google.com/p/go.tools/refactor/eg.
+package main // import "golang.org/x/tools/cmd/eg"
 
 import (
 	"flag"
@@ -9,11 +11,10 @@ import (
 	"go/token"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
-	"code.google.com/p/go.tools/go/loader"
-	"code.google.com/p/go.tools/refactor/eg"
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/refactor/eg"
 )
 
 var (
@@ -35,7 +36,7 @@ Usage: eg -t template.go [-w] [-transitive] <args>...
 
 func main() {
 	if err := doMain(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %s.\n", filepath.Base(os.Args[0]), err)
+		fmt.Fprintf(os.Stderr, "eg: %s\n", err)
 		os.Exit(1)
 	}
 }
@@ -126,7 +127,7 @@ func doMain() error {
 					}
 				}
 				if err := eg.WriteAST(iprog.Fset, filename, file); err != nil {
-					fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+					fmt.Fprintf(os.Stderr, "eg: %s\n", err)
 					hadErrors = true
 				}
 			} else {

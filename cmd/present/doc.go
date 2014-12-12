@@ -8,7 +8,7 @@ presents slide and article files from the current directory.
 
 It may be run as a stand-alone command or an App Engine app.
 Instructions for deployment to App Engine are in the README of the
-code.google.com/p/go.tools repository.
+golang.org/x/tools repository.
 
 Usage of present:
   -base="": base path for slide template and static resources
@@ -18,7 +18,7 @@ Usage of present:
   -play=true: enable playground (permit execution of arbitrary user code)
 
 The setup of the Go version of NaCl is documented at:
-https://code.google.com/p/go-wiki/wiki/NativeClient
+https://golang.org/wiki/NativeClient
 
 Input files are named foo.extension, where "extension" defines the format of
 the generated output. The supported formats are:
@@ -26,6 +26,6 @@ the generated output. The supported formats are:
 	.article      // article format, such as a blog post
 
 The present file format is documented by the present package:
-http://godoc.org/code.google.com/p/go.tools/present
+http://godoc.org/golang.org/x/tools/present
 */
-package main
+package main // import "golang.org/x/tools/cmd/present"
