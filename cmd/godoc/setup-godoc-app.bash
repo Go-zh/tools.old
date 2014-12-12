@@ -21,7 +21,7 @@
 ZIPFILE=godoc.zip
 INDEXFILE=godoc.index
 SPLITFILES=index.split.
-GODOC=golang.org/x/tools/cmd/godoc
+GODOC=github.com/golang-zh/tools/cmd/godoc
 CONFIGFILE=$GODOC/appconfig.go
 
 error() {

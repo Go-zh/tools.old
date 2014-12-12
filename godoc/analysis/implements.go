@@ -13,7 +13,7 @@ package analysis
 import (
 	"sort"
 
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/go/types"
 )
 
 // computeImplements computes the "implements" relation over all pairs

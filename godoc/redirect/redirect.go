@@ -5,7 +5,7 @@
 // Package redirect provides hooks to register HTTP handlers that redirect old
 // godoc paths to their new equivalents and assist in accessing the issue
 // tracker, wiki, code review system, etc.
-package redirect // import "golang.org/x/tools/godoc/redirect"
+package redirect // import "github.com/golang-zh/tools/godoc/redirect"
 
 import (
 	"net/http"
@@ -98,8 +98,8 @@ var redirects = map[string]string{
 =======
 	"/change":     "https://go.googlesource.com/go",
 	"/cl":         "https://go-review.googlesource.com",
-	"/cmd/godoc/": "http://godoc.org/golang.org/x/tools/cmd/godoc/",
-	"/cmd/vet/":   "http://godoc.org/golang.org/x/tools/cmd/vet/",
+	"/cmd/godoc/": "http://godoc.org/github.com/golang-zh/tools/cmd/godoc/",
+	"/cmd/vet/":   "http://godoc.org/github.com/golang-zh/tools/cmd/vet/",
 	"/issue":      "https://github.com/golang/go/issues",
 	"/issue/new":  "https://github.com/golang/go/issues/new",
 	"/issues":     "https://github.com/golang/go/issues",

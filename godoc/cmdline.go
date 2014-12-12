@@ -15,14 +15,14 @@ import (
 	"regexp"
 	"strings"
 
-	"golang.org/x/tools/godoc/vfs"
+	"github.com/golang-zh/tools/godoc/vfs"
 )
 
 const (
 	target    = "/target"
 	cmdPrefix = "cmd/"
 	srcPrefix = "src/"
-	toolsPath = "golang.org/x/tools/cmd/"
+	toolsPath = "github.com/golang-zh/tools/cmd/"
 )
 
 // CommandLine returns godoc results to w.
