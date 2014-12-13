@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/tools/astutil"
+	"github.com/golang-zh/tools/astutil"
 )
 
 // importToGroup is a list of functions which map from an import path to

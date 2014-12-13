@@ -7,7 +7,7 @@
 package main
 
 import (
-	"golang.org/x/tools/go/gcimporter"
+	"github.com/golang-zh/tools/go/gcimporter"
 )
 
 func init() {

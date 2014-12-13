@@ -14,8 +14,8 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/tools/astutil"
-	"golang.org/x/tools/oracle/serial"
+	"github.com/golang-zh/tools/astutil"
+	"github.com/golang-zh/tools/oracle/serial"
 )
 
 // what reports all the information about the query selection that can be

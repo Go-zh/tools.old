@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
-	_ "golang.org/x/tools/go/gcimporter"
-	"golang.org/x/tools/go/types"
+	_ "github.com/golang-zh/tools/go/gcimporter"
+	"github.com/golang-zh/tools/go/types"
 )
 
 // TODO: Need a flag to set build tags when parsing the package.
@@ -159,7 +159,7 @@ func Usage() {
 	fmt.Fprintf(os.Stderr, "\tvet [flags] directory...\n")
 	fmt.Fprintf(os.Stderr, "\tvet [flags] files... # Must be a single package\n")
 	fmt.Fprintf(os.Stderr, "For more information run\n")
-	fmt.Fprintf(os.Stderr, "\tgodoc golang.org/x/tools/cmd/vet\n\n")
+	fmt.Fprintf(os.Stderr, "\tgodoc github.com/golang-zh/tools/cmd/vet\n\n")
 	fmt.Fprintf(os.Stderr, "Flags:\n")
 	flag.PrintDefaults()
 	os.Exit(2)

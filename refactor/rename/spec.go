@@ -20,9 +20,9 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/tools/go/buildutil"
-	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/go/buildutil"
+	"github.com/golang-zh/tools/go/loader"
+	"github.com/golang-zh/tools/go/types"
 )
 
 // A spec specifies an entity to rename.

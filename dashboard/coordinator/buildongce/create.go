@@ -4,7 +4,7 @@
 
 // +build ignore
 
-package main // import "golang.org/x/tools/dashboard/coordinator/buildongce"
+package main // import "github.com/golang-zh/tools/dashboard/coordinator/buildongce"
 
 import (
 	"bufio"
@@ -70,14 +70,14 @@ coreos:
         Description=Go Builders
         After=docker.service
         Requires=docker.service
-        
+
         [Service]
         ExecStartPre=/bin/bash -c 'mkdir -p /opt/bin && curl -s -o /opt/bin/coordinator http://storage.googleapis.com/go-builder-data/coordinator && chmod +x /opt/bin/coordinator'
         ExecStart=/opt/bin/coordinator
         RestartSec=10s
         Restart=always
         Type=simple
-        
+
         [Install]
         WantedBy=multi-user.target
 `

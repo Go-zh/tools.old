@@ -10,12 +10,12 @@ import (
 	"go/token"
 	"sort"
 
-	"golang.org/x/tools/astutil"
-	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/pointer"
-	"golang.org/x/tools/go/ssa"
-	"golang.org/x/tools/go/types"
-	"golang.org/x/tools/oracle/serial"
+	"github.com/golang-zh/tools/astutil"
+	"github.com/golang-zh/tools/go/loader"
+	"github.com/golang-zh/tools/go/pointer"
+	"github.com/golang-zh/tools/go/ssa"
+	"github.com/golang-zh/tools/go/types"
+	"github.com/golang-zh/tools/oracle/serial"
 )
 
 // pointsto runs the pointer analysis on the selected expression,

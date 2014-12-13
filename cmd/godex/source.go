@@ -7,7 +7,7 @@
 package main
 
 import (
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/go/types"
 )
 
 func init() {

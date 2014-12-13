@@ -11,8 +11,8 @@ import (
 	"go/token"
 	"sort"
 
-	"golang.org/x/tools/go/types"
-	"golang.org/x/tools/oracle/serial"
+	"github.com/golang-zh/tools/go/types"
+	"github.com/golang-zh/tools/oracle/serial"
 )
 
 // freevars displays the lexical (not package-level) free variables of

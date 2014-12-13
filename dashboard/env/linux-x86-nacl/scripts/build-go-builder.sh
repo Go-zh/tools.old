@@ -15,7 +15,7 @@ mkdir -p $GO_TOOLS
 git clone https://go.googlesource.com/tools $GO_TOOLS
 
 mkdir -p $PREFIX/bin
-(cd $GO_TOOLS && git reset --hard $BUILDER_REV && GOBIN=$PREFIX/bin /goroot/bin/go install golang.org/x/tools/dashboard/builder)
+(cd $GO_TOOLS && git reset --hard $BUILDER_REV && GOBIN=$PREFIX/bin /goroot/bin/go install github.com/golang-zh/tools/dashboard/builder)
 
 rm -fR $GOROOT/bin $GOROOT/pkg $GOPATH
 

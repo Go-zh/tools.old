@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"go/token"
 
-	"golang.org/x/tools/go/callgraph"
-	"golang.org/x/tools/go/ssa"
-	"golang.org/x/tools/oracle/serial"
+	"github.com/golang-zh/tools/go/callgraph"
+	"github.com/golang-zh/tools/go/ssa"
+	"github.com/golang-zh/tools/oracle/serial"
 )
 
 // Callers reports the possible callers of the function

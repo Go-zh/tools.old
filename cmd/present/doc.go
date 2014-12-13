@@ -26,6 +26,6 @@ the generated output. The supported formats are:
 	.article      // article format, such as a blog post
 
 The present file format is documented by the present package:
-http://godoc.org/golang.org/x/tools/present
+http://godoc.org/github.com/golang-zh/tools/present
 */
-package main // import "golang.org/x/tools/cmd/present"
+package main // import "github.com/golang-zh/tools/cmd/present"

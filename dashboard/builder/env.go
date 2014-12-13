@@ -15,7 +15,7 @@ import (
 	"runtime"
 	"strings"
 
-	"golang.org/x/tools/go/vcs"
+	"github.com/golang-zh/tools/go/vcs"
 )
 
 // builderEnv represents the environment that a Builder will run tests in.

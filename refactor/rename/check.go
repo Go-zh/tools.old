@@ -11,10 +11,10 @@ import (
 	"go/ast"
 	"go/token"
 
-	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/types"
-	"golang.org/x/tools/refactor/lexical"
-	"golang.org/x/tools/refactor/satisfy"
+	"github.com/golang-zh/tools/go/loader"
+	"github.com/golang-zh/tools/go/types"
+	"github.com/golang-zh/tools/refactor/lexical"
+	"github.com/golang-zh/tools/refactor/satisfy"
 )
 
 // errorf reports an error (e.g. conflict) and prevents file modification.
@@ -725,7 +725,7 @@ func someUse(info *loader.PackageInfo, obj types.Object) *ast.Ident {
 	return nil
 }
 
-// -- Plundered from golang.org/x/tools/go/ssa -----------------
+// -- Plundered from github.com/golang-zh/tools/go/ssa -----------------
 
 func isInterface(T types.Type) bool {
 	_, ok := T.Underlying().(*types.Interface)

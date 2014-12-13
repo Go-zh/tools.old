@@ -3,9 +3,9 @@
 // license that can be found in the LICENSE file.
 
 // Package rename contains the implementation of the 'gorename' command
-// whose main function is in golang.org/x/tools/refactor/rename.
+// whose main function is in github.com/golang-zh/tools/refactor/rename.
 // See that package for the command documentation.
-package rename // import "golang.org/x/tools/refactor/rename"
+package rename // import "github.com/golang-zh/tools/refactor/rename"
 
 import (
 	"errors"
@@ -20,10 +20,10 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/types"
-	"golang.org/x/tools/refactor/importgraph"
-	"golang.org/x/tools/refactor/satisfy"
+	"github.com/golang-zh/tools/go/loader"
+	"github.com/golang-zh/tools/go/types"
+	"github.com/golang-zh/tools/refactor/importgraph"
+	"github.com/golang-zh/tools/refactor/satisfy"
 )
 
 var (
