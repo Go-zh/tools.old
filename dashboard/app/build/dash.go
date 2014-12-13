@@ -178,7 +178,7 @@ var goPackages = []*Package{
 	{
 		Kind: "subrepo",
 		Name: "tools",
-		Path: "golang.org/x/tools",
+		Path: "github.com/golang-zh/tools",
 	},
 }
 

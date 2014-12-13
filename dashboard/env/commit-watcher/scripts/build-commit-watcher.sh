@@ -10,7 +10,7 @@ mkdir -p $GOROOT
 git clone https://go.googlesource.com/go $GOROOT
 (cd $GOROOT/src && git reset --hard $GO_REV && find && ./make.bash)
 
-GO_TOOLS=$GOPATH/src/golang.org/x/tools
+GO_TOOLS=$GOPATH/src/github.com/golang-zh/tools
 mkdir -p $GO_TOOLS
 git clone https://go.googlesource.com/tools $GO_TOOLS
 
