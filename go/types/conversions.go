@@ -6,7 +6,7 @@
 
 package types
 
-import "golang.org/x/tools/go/exact"
+import "github.com/golang-zh/tools/go/exact"
 
 // Conversion type-checks the conversion T(x).
 // The result is in x.

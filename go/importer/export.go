@@ -11,8 +11,8 @@ import (
 	"go/ast"
 	"strings"
 
-	"golang.org/x/tools/go/exact"
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/go/exact"
+	"github.com/golang-zh/tools/go/types"
 )
 
 // debugging support

@@ -11,7 +11,7 @@
 // map type.  The IsEmpty, Min, Max, Clear and TakeMin operations
 // require constant time.
 //
-package intsets // import "golang.org/x/tools/container/intsets"
+package intsets // import "github.com/golang-zh/tools/container/intsets"
 
 // TODO(adonovan):
 // - Add SymmetricDifference(x, y *Sparse), i.e. x ∆ y.

@@ -15,11 +15,11 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/tools/go/callgraph"
-	"golang.org/x/tools/go/callgraph/rta"
-	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/ssa"
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/go/callgraph"
+	"github.com/golang-zh/tools/go/callgraph/rta"
+	"github.com/golang-zh/tools/go/loader"
+	"github.com/golang-zh/tools/go/ssa"
+	"github.com/golang-zh/tools/go/types"
 )
 
 var inputs = []string{

@@ -47,7 +47,7 @@ import (
 	"math/big"
 	"os"
 
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/go/types"
 )
 
 // If true, perform sanity checking and show diagnostic information at

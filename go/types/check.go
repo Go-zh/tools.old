@@ -10,7 +10,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"golang.org/x/tools/go/exact"
+	"github.com/golang-zh/tools/go/exact"
 )
 
 // debugging/development support

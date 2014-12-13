@@ -8,8 +8,8 @@ import (
 	"go/parser"
 	"go/token"
 
-	"golang.org/x/tools/go/types"
-	"golang.org/x/tools/go/types/typeutil"
+	"github.com/golang-zh/tools/go/types"
+	"github.com/golang-zh/tools/go/types/typeutil"
 )
 
 func ExampleMap() {

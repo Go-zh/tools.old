@@ -11,8 +11,8 @@ import (
 	"go/token"
 	"strconv"
 
-	"golang.org/x/tools/go/exact"
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/go/exact"
+	"github.com/golang-zh/tools/go/types"
 )
 
 // NewConst returns a new constant of the specified value and type.

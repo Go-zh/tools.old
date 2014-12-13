@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	_ "golang.org/x/tools/go/gcimporter"
-	. "golang.org/x/tools/go/types"
+	_ "github.com/golang-zh/tools/go/gcimporter"
+	. "github.com/golang-zh/tools/go/types"
 )
 
 func TestIssue5770(t *testing.T) {

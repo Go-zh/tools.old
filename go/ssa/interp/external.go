@@ -15,8 +15,8 @@ import (
 	"time"
 	"unsafe"
 
-	"golang.org/x/tools/go/ssa"
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/go/ssa"
+	"github.com/golang-zh/tools/go/types"
 )
 
 type externalFn func(fr *frame, args []value) value

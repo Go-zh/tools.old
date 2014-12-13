@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	_ "golang.org/x/tools/go/gcimporter"
-	. "golang.org/x/tools/go/types"
+	_ "github.com/golang-zh/tools/go/gcimporter"
+	. "github.com/golang-zh/tools/go/types"
 )
 
 func pkgFor(path, source string, info *Info) (*Package, error) {
@@ -844,7 +844,7 @@ func TestIssue8518(t *testing.T) {
 	}
 
 	const libSrc = `
-package a 
+package a
 import "missing"
 const C1 = foo
 const C2 = missing.C

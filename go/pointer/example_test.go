@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"sort"
 
-	"golang.org/x/tools/go/callgraph"
-	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/pointer"
-	"golang.org/x/tools/go/ssa"
+	"github.com/golang-zh/tools/go/callgraph"
+	"github.com/golang-zh/tools/go/loader"
+	"github.com/golang-zh/tools/go/pointer"
+	"github.com/golang-zh/tools/go/ssa"
 )
 
 // This program demonstrates how to use the pointer analysis to

@@ -12,7 +12,7 @@ import (
 	"go/token"
 	"math"
 
-	"golang.org/x/tools/go/exact"
+	"github.com/golang-zh/tools/go/exact"
 )
 
 /*

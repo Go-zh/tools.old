@@ -12,7 +12,7 @@ import (
 	"go/parser"
 	"go/token"
 
-	"golang.org/x/tools/go/exact"
+	"github.com/golang-zh/tools/go/exact"
 )
 
 // New is a convenience function to create a new type from a given

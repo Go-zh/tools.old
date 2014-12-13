@@ -14,8 +14,8 @@ import (
 	"strings"
 	"text/scanner"
 
-	"golang.org/x/tools/go/exact"
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/go/exact"
+	"github.com/golang-zh/tools/go/types"
 )
 
 type parser struct {

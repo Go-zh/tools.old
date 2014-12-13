@@ -16,11 +16,11 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/tools/astutil"
-	"golang.org/x/tools/go/exact"
-	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/ssa"
-	"golang.org/x/tools/go/types"
+	"github.com/golang-zh/tools/astutil"
+	"github.com/golang-zh/tools/go/exact"
+	"github.com/golang-zh/tools/go/loader"
+	"github.com/golang-zh/tools/go/ssa"
+	"github.com/golang-zh/tools/go/types"
 )
 
 func TestObjValueLookup(t *testing.T) {

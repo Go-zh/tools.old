@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/tools/go/buildutil"
-	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/ssa"
-	"golang.org/x/tools/go/ssa/ssautil"
+	"github.com/golang-zh/tools/go/buildutil"
+	"github.com/golang-zh/tools/go/loader"
+	"github.com/golang-zh/tools/go/ssa"
+	"github.com/golang-zh/tools/go/ssa/ssautil"
 )
 
 func bytesAllocated() uint64 {
