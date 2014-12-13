@@ -87,15 +87,6 @@ var cmdRedirects = map[string]string{
 var redirects = map[string]string{
 	"/blog":       "/blog/",
 	"/build":      "http://build.golang.org",
-<<<<<<< HEAD
-	"/change":     "https://code.google.com/p/go/source/list",
-	"/cl":         "https://gocodereview.appspot.com/",
-	"/cmd/godoc/": "http://godoc.org/code.google.com/p/go-zh.tools/cmd/godoc/",
-	"/cmd/vet/":   "http://godoc.org/code.google.com/p/go-zh.tools/cmd/vet/",
-	"/issue":      "https://code.google.com/p/go/issues",
-	"/issue/new":  "https://code.google.com/p/go/issues/entry",
-	"/issues":     "https://code.google.com/p/go/issues",
-=======
 	"/change":     "https://go.googlesource.com/go",
 	"/cl":         "https://go-review.googlesource.com",
 	"/cmd/godoc/": "http://godoc.org/github.com/golang-zh/tools/cmd/godoc/",
@@ -103,7 +94,6 @@ var redirects = map[string]string{
 	"/issue":      "https://github.com/golang/go/issues",
 	"/issue/new":  "https://github.com/golang/go/issues/new",
 	"/issues":     "https://github.com/golang/go/issues",
->>>>>>> master
 	"/play":       "http://play.golang.org",
 
 	// In Go 1.2 the references page is part of /doc/.
