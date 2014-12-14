@@ -33,8 +33,8 @@ getArgs() {
 	if [ -z $APPENGINE_SDK ]; then
 		error "APPENGINE_SDK environment variable not set"
 	fi
-	if [ ! -x $APPENGINE_SDK/go ]; then
-		error "couldn't find go comment in $APPENGINE_SDK"
+	if [ ! -x $APPENGINE_SDK/goapp ]; then
+		error "couldn't find goapp command in $APPENGINE_SDK"
 	fi
 	if [ -z $GOROOT ]; then
 		GOROOT=$(go env GOROOT)
@@ -64,7 +64,7 @@ getArgs() {
 fetchGodoc() {
 	echo "*** Fetching godoc (if not already in GOPATH)"
 	unset GOBIN
-	go=$APPENGINE_SDK/go
+	go=$APPENGINE_SDK/goapp
 	$go get -d -tags appengine $GODOC
 	mkdir -p $APPDIR/$GODOC
 	cp $(find $($go list -f '{{.Dir}}' $GODOC) -type f -depth 1) $APPDIR/$GODOC/
@@ -73,8 +73,8 @@ fetchGodoc() {
 makeAppYaml() {
 	echo "*** make $APPDIR/app.yaml"
 	cat > $APPDIR/app.yaml <<EOF
-application: godoc
-version: 1
+application: zh-golang
+version: go14
 runtime: go
 api_version: go1
 
@@ -127,8 +127,11 @@ mkdir $APPDIR
 fetchGodoc
 makeAppYaml
 makeZipfile
-makeIndexfile
-splitIndexfile
+
+# disable close the search index
+# makeIndexfile
+# splitIndexfile
 makeConfigfile
 
 echo "*** setup complete"
+

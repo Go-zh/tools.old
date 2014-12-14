@@ -44,7 +44,8 @@ func init() {
 	corpus := godoc.NewCorpus(fs)
 	corpus.Verbose = false
 	corpus.MaxResults = 10000 // matches flag default in main.go
-	corpus.IndexEnabled = true
+	// disable the search index
+	corpus.IndexEnabled = false
 	corpus.IndexFiles = indexFilenames
 	if err := corpus.Init(); err != nil {
 		log.Fatal(err)
