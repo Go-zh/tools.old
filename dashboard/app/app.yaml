@@ -1,7 +1,7 @@
 # Update with
-#	google_appengine/appcfg.py [-V test-build] update .
+#	google_appengine/appcfg.py [-V build-test] update .
 #
-# Using -V test-build will run as test-build.golang.org.
+# Using -V build-test will run as build-test.golang.org.
 
 application: golang-org
 version: build
@@ -13,7 +13,7 @@ handlers:
   static_dir: static
 - url: /(|gccgo/|hg/)log/.+
   script: _go_app
-- url: /(|gccgo/|hg/)(|commit|packages|result|perf-result|tag|todo|perf|perfdetail|perfgraph|updatebenchmark)
+- url: /(|gccgo/|hg/)(|clear-results|commit|packages|result|perf-result|tag|todo|perf|perfdetail|perfgraph|updatebenchmark)
   script: _go_app
 - url: /(|gccgo/|hg/)(init|buildtest|key|perflearn|_ah/queue/go/delay)
   script: _go_app
