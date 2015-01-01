@@ -13,6 +13,7 @@ import (
 	"archive/zip"
 	"log"
 	"path"
+	"regexp"
 
 	"github.com/golang-zh/tools/godoc"
 	"github.com/golang-zh/tools/godoc/static"
@@ -57,6 +58,7 @@ func init() {
 	pres.ShowPlayground = true
 	pres.ShowExamples = true
 	pres.DeclLinks = true
+	pres.NotesRx = regexp.MustCompile("BUG")
 
 	readTemplates(pres, true)
 	registerHandlers(pres)
