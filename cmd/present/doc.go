@@ -8,7 +8,7 @@ presents slide and article files from the current directory.
 
 It may be run as a stand-alone command or an App Engine app.
 Instructions for deployment to App Engine are in the README of the
-golang.org/x/tools repository.
+github.com/golang-zh/tools repository.
 
 Usage of present:
   -base="": base path for slide template and static resources

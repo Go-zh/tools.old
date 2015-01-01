@@ -660,7 +660,7 @@ func readKey() (string, error) {
 
 // subrepoList fetches a list of sub-repositories from the dashboard
 // and returns them as a slice of base import paths.
-// Eg, []string{"golang.org/x/tools", "golang.org/x/net"}.
+// Eg, []string{"github.com/golang-zh/tools", "golang.org/x/net"}.
 func subrepoList() ([]string, error) {
 	if !*network {
 		return nil, nil

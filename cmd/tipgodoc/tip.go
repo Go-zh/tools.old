@@ -97,7 +97,7 @@ func initSide(side, goHash, toolsHash string) (hostport string, err error) {
 	}
 
 	goDir := filepath.Join(dir, "go")
-	toolsDir := filepath.Join(dir, "gopath/src/golang.org/x/tools")
+	toolsDir := filepath.Join(dir, "gopath/src/github.com/golang-zh/tools")
 	if err := checkout("https://go.googlesource.com/go", goHash, goDir); err != nil {
 		return "", err
 	}
@@ -116,7 +116,7 @@ func initSide(side, goHash, toolsHash string) (hostport string, err error) {
 		return "", err
 	}
 	goBin := filepath.Join(goDir, "bin/go")
-	install := exec.Command(goBin, "install", "golang.org/x/tools/cmd/godoc")
+	install := exec.Command(goBin, "install", "github.com/golang-zh/tools/cmd/godoc")
 	install.Stdout = os.Stdout
 	install.Stderr = os.Stderr
 	install.Env = env
