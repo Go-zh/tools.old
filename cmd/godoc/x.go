@@ -4,7 +4,7 @@
 
 // This file contains the handlers that serve go-import redirects for Go
 // sub-repositories. It specifies the mapping from import paths like
-// "golang.org/x/tools" to the actual repository locations.
+// "github.com/golang-zh/tools" to the actual repository locations.
 
 package main
 

@@ -2,7 +2,7 @@
 // identifiers in Go source code.
 //
 // Run with -help for usage information, or view the Usage constant in
-// package golang.org/x/tools/refactor/rename, which contains most of
+// package github.com/golang-zh/tools/refactor/rename, which contains most of
 // the implementation.
 //
 package main // import "github.com/golang-zh/tools/cmd/gorename"
