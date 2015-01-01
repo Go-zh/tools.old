@@ -12,7 +12,7 @@
   <body style='display: none'>
 
     <section class='slides layout-widescreen'>
-      
+
       <article>
         <h1>{{.Title}}</h1>
         {{with .Subtitle}}<h3>{{.}}</h3>{{end}}
@@ -23,7 +23,7 @@
           </div>
         {{end}}
       </article>
-      
+
   {{range $i, $s := .Sections}}
   <!-- start of slide {{$s.Number}} -->
       <article>
