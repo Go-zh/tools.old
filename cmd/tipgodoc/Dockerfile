@@ -1,16 +1,10 @@
-# Dockerfile extending the generic Go image with application files for a
-# single application.
-FROM google/appengine-go
+FROM golang
 
-RUN apt-get update
-RUN apt-get install --no-install-recommends -y -q curl build-essential git
-RUN mkdir /goroot && curl https://storage.googleapis.com/golang/go1.2.2.linux-amd64.tar.gz | tar xvzf - -C /goroot --strip-components=1
-RUN mkdir /gopath
+RUN apt-get update && apt-get install --no-install-recommends -y -q build-essential git
 
-ENV GOROOT /goroot
-ENV GOPATH /gopath
-ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
-
-WORKDIR /app
-ADD . /app
-RUN /bin/bash /app/_ah/build.sh
+# golang sets GOPATH=/go
+ADD . /go/src/tipgodoc
+RUN go install tipgodoc
+ENTRYPOINT ["/go/bin/tipgodoc"]
+# Kubernetes expects us to listen on port 8080
+EXPOSE 8080 
