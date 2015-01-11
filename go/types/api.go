@@ -20,7 +20,7 @@
 // and checks for compliance with the language specification.
 // Use Info.Types[expr].Type for the results of type inference.
 //
-package types // import "github.com/golang-zh/tools/go/types"
+package types // import "github.com/Go-zh/tools/go/types"
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/golang-zh/tools/go/exact"
+	"github.com/Go-zh/tools/go/exact"
 )
 
 // Check type-checks a package and returns the resulting complete package
@@ -122,7 +122,7 @@ type Config struct {
 // DefaultImport is the default importer invoked if Config.Import == nil.
 // The declaration:
 //
-//	import _ "github.com/golang-zh/tools/go/gcimporter"
+//	import _ "github.com/Go-zh/tools/go/gcimporter"
 //
 // in a client of go/types will initialize DefaultImport to gcimporter.Import.
 var DefaultImport Importer

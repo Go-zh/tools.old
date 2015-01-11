@@ -11,7 +11,7 @@
 // values produce unknown values unless specified
 // otherwise.
 //
-package exact // import "github.com/golang-zh/tools/go/exact"
+package exact // import "github.com/Go-zh/tools/go/exact"
 
 import (
 	"fmt"

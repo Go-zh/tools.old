@@ -10,7 +10,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/golang-zh/tools/astutil"
+	"github.com/Go-zh/tools/astutil"
 )
 
 func init() {

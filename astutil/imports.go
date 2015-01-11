@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Package astutil contains common utilities for working with the Go AST.
-package astutil // import "github.com/golang-zh/tools/astutil"
+package astutil // import "github.com/Go-zh/tools/astutil"
 
 import (
 	"fmt"

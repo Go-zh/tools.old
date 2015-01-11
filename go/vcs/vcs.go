@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package vcs // import "github.com/golang-zh/tools/go/vcs"
+package vcs // import "github.com/Go-zh/tools/go/vcs"
 
 import (
 	"bytes"

@@ -9,7 +9,7 @@
 //
 // THIS INTERFACE IS EXPERIMENTAL AND MAY CHANGE OR BE REMOVED IN FUTURE.
 //
-package lexical // import "github.com/golang-zh/tools/refactor/lexical"
+package lexical // import "github.com/Go-zh/tools/refactor/lexical"
 
 // OVERVIEW
 //
@@ -35,7 +35,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/types"
 )
 
 const trace = false
@@ -745,7 +745,7 @@ func Structure(fset *token.FileSet, pkg *types.Package, info *types.Info, files 
 	return r.result
 }
 
-// -- Plundered from github.com/golang-zh/tools/go/ssa -----------------
+// -- Plundered from github.com/Go-zh/tools/go/ssa -----------------
 
 // deref returns a pointer's element type; otherwise it returns typ.
 func deref(typ types.Type) types.Type {

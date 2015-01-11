@@ -4,7 +4,7 @@
 
 // callgraph: a tool for reporting the call graph of a Go program.
 // See Usage for details, or run with -help.
-package main // import "github.com/golang-zh/tools/cmd/callgraph"
+package main // import "github.com/Go-zh/tools/cmd/callgraph"
 
 // TODO(adonovan):
 //
@@ -30,13 +30,13 @@ import (
 	"runtime"
 	"text/template"
 
-	"github.com/golang-zh/tools/go/callgraph"
-	"github.com/golang-zh/tools/go/callgraph/cha"
-	"github.com/golang-zh/tools/go/callgraph/rta"
-	"github.com/golang-zh/tools/go/callgraph/static"
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/go/pointer"
-	"github.com/golang-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/go/callgraph"
+	"github.com/Go-zh/tools/go/callgraph/cha"
+	"github.com/Go-zh/tools/go/callgraph/rta"
+	"github.com/Go-zh/tools/go/callgraph/static"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/pointer"
+	"github.com/Go-zh/tools/go/ssa"
 )
 
 var algoFlag = flag.String("algo", "rta",
@@ -75,7 +75,7 @@ Flags:
            One of:
 
             digraph     output suitable for input to
-                        github.com/golang-zh/tools/cmd/digraph.
+                        github.com/Go-zh/tools/cmd/digraph.
             graphviz    output in AT&T GraphViz (.dot) format.
 
            All other values are interpreted using text/template syntax.
@@ -126,8 +126,8 @@ Examples:
 
   Show all functions directly called by the callgraph tool's main function:
 
-    callgraph -format=digraph github.com/golang-zh/tools/cmd/callgraph |
-      digraph succs github.com/golang-zh/tools/cmd/callgraph.main
+    callgraph -format=digraph github.com/Go-zh/tools/cmd/callgraph |
+      digraph succs github.com/Go-zh/tools/cmd/callgraph.main
 `
 
 func init() {

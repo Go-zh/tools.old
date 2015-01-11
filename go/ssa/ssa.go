@@ -13,10 +13,10 @@ import (
 	"go/token"
 	"sync"
 
-	"github.com/golang-zh/tools/go/exact"
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/go/types"
-	"github.com/golang-zh/tools/go/types/typeutil"
+	"github.com/Go-zh/tools/go/exact"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/types/typeutil"
 )
 
 // A Program is a partial or complete Go program converted to SSA form.

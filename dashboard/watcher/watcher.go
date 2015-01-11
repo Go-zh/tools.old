@@ -4,7 +4,7 @@
 
 // Command watcher watches the specified repository for new commits
 // and reports them to the build dashboard.
-package main // import "github.com/golang-zh/tools/dashboard/watcher"
+package main // import "github.com/Go-zh/tools/dashboard/watcher"
 
 import (
 	"bufio"
@@ -660,7 +660,7 @@ func readKey() (string, error) {
 
 // subrepoList fetches a list of sub-repositories from the dashboard
 // and returns them as a slice of base import paths.
-// Eg, []string{"github.com/golang-zh/tools", "golang.org/x/net"}.
+// Eg, []string{"github.com/Go-zh/tools", "golang.org/x/net"}.
 func subrepoList() ([]string, error) {
 	if !*network {
 		return nil, nil

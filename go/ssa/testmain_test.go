@@ -12,8 +12,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/ssa"
 )
 
 func create(t *testing.T, content string) []*ssa.Package {

@@ -4,7 +4,7 @@
 
 // +build ignore
 
-package main // import "github.com/golang-zh/tools/dashboard/coordinator/buildongce"
+package main // import "github.com/Go-zh/tools/dashboard/coordinator/buildongce"
 
 import (
 	"bufio"

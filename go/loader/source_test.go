@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/golang-zh/tools/astutil"
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/astutil"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/ssa"
 )
 
 // findInterval parses input and returns the [start, end) positions of

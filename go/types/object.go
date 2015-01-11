@@ -10,7 +10,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/golang-zh/tools/go/exact"
+	"github.com/Go-zh/tools/go/exact"
 )
 
 // TODO(gri) Document factory, accessor methods, and fields. General clean-up.

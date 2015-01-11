@@ -8,10 +8,10 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/golang-zh/tools/astutil"
-	"github.com/golang-zh/tools/go/exact"
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/astutil"
+	"github.com/Go-zh/tools/go/exact"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/types"
 )
 
 // matchExpr reports whether pattern x matches y.

@@ -9,9 +9,9 @@ import (
 	pathpkg "path"
 	"time"
 
-	"github.com/golang-zh/tools/godoc/analysis"
-	"github.com/golang-zh/tools/godoc/util"
-	"github.com/golang-zh/tools/godoc/vfs"
+	"github.com/Go-zh/tools/godoc/analysis"
+	"github.com/Go-zh/tools/godoc/util"
+	"github.com/Go-zh/tools/godoc/vfs"
 )
 
 // A Corpus holds all the state related to serving and indexing a

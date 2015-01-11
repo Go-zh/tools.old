@@ -13,9 +13,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/go/types"
-	"github.com/golang-zh/tools/go/types/typeutil"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/types/typeutil"
 )
 
 // BuilderMode is a bitmask of options for diagnostics and checking.

@@ -183,7 +183,7 @@ var goPackages = []*Package{
 	{
 		Kind: "subrepo",
 		Name: "tools",
-		Path: "github.com/golang-zh/tools",
+		Path: "github.com/Go-zh/tools",
 	},
 }
 

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-zh/tools/godoc/vfs"
+	"github.com/Go-zh/tools/godoc/vfs"
 )
 
 var (

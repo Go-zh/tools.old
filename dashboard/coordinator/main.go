@@ -5,7 +5,7 @@
 // +build build_coordinator
 
 // The coordinator runs on GCE and coordinates builds in Docker containers.
-package main // import "github.com/golang-zh/tools/dashboard/coordinator"
+package main // import "github.com/Go-zh/tools/dashboard/coordinator"
 
 import (
 	"archive/tar"
