@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/loader"
 )
 
 func loadFromArgs(args []string) (prog *loader.Program, rest []string, err error) {

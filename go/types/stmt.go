@@ -11,7 +11,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/golang-zh/tools/go/exact"
+	"github.com/Go-zh/tools/go/exact"
 )
 
 func (check *Checker) funcBody(decl *declInfo, name string, sig *Signature, body *ast.BlockStmt) {

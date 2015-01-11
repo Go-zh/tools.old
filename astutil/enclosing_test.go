@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/golang-zh/tools/astutil"
+	"github.com/Go-zh/tools/astutil"
 )
 
 // pathToString returns a string containing the concrete types of the

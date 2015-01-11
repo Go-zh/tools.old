@@ -8,7 +8,7 @@
 //
 // Run with -help flag or help subcommand for usage information.
 //
-package main // import "github.com/golang-zh/tools/cmd/oracle"
+package main // import "github.com/Go-zh/tools/cmd/oracle"
 
 import (
 	"bufio"
@@ -23,8 +23,8 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/oracle"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/oracle"
 )
 
 var posFlag = flag.String("pos", "",
@@ -70,8 +70,8 @@ The user manual is available here:  http://golang.org/s/oracle-user-manual
 Examples:
 
 Describe the syntax at offset 530 in this file (an import spec):
-% oracle -pos=src/github.com/golang-zh/tools/cmd/oracle/main.go:#530 describe \
-   github.com/golang-zh/tools/cmd/oracle
+% oracle -pos=src/github.com/Go-zh/tools/cmd/oracle/main.go:#530 describe \
+   github.com/Go-zh/tools/cmd/oracle
 
 Print the callgraph of the trivial web-server in JSON format:
 % oracle -format=json $GOROOT/src/net/http/triv.go callgraph

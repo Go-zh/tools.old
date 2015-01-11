@@ -10,7 +10,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/types"
 )
 
 // imports is the canonical map of imported packages we need for typechecking.

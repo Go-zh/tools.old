@@ -3,7 +3,7 @@
 ;;;
 ;;; To install the Go oracle, run:
 ;;; % export GOROOT=... GOPATH=...
-;;; % go get github.com/golang-zh/tools/cmd/oracle
+;;; % go get github.com/Go-zh/tools/cmd/oracle
 ;;; % mv $GOPATH/bin/oracle $GOROOT/bin/
 ;;;
 ;;; Load this file into Emacs and set go-oracle-scope to your

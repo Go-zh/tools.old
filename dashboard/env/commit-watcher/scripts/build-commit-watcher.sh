@@ -10,11 +10,11 @@ mkdir -p $GOROOT
 git clone https://go.googlesource.com/go $GOROOT
 (cd $GOROOT/src && git reset --hard $GO_REV && find && ./make.bash)
 
-GO_TOOLS=$GOPATH/src/github.com/golang-zh/tools
+GO_TOOLS=$GOPATH/src/github.com/Go-zh/tools
 mkdir -p $GO_TOOLS
 git clone https://go.googlesource.com/tools $GO_TOOLS
 
 mkdir -p $PREFIX/bin
-(cd $GO_TOOLS && git reset --hard $WATCHER_REV && GOBIN=$PREFIX/bin /goroot/bin/go install github.com/golang-zh/tools/dashboard/watcher)
+(cd $GO_TOOLS && git reset --hard $WATCHER_REV && GOBIN=$PREFIX/bin /goroot/bin/go install github.com/Go-zh/tools/dashboard/watcher)
 
 rm -fR $GOROOT/bin $GOROOT/pkg $GOPATH

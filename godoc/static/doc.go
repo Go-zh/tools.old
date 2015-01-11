@@ -4,5 +4,5 @@
 
 // Package static exports a map of static file content that supports the godoc
 // user interface. The map should be used with the mapfs package, see
-// github.com/golang-zh/tools/godoc/vfs/mapfs.
-package static // import "github.com/golang-zh/tools/godoc/static"
+// github.com/Go-zh/tools/godoc/vfs/mapfs.
+package static // import "github.com/Go-zh/tools/godoc/static"

@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/go/ssa"
-	"github.com/golang-zh/tools/go/ssa/interp"
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/go/ssa/interp"
+	"github.com/Go-zh/tools/go/types"
 )
 
 // Each line contains a space-separated list of $GOROOT/test/
@@ -209,7 +209,7 @@ func run(t *testing.T, dir, input string, success successPredicate) bool {
 		interp.CapturedOutput = nil
 	}()
 
-	hint = fmt.Sprintf("To dump SSA representation, run:\n%% go build github.com/golang-zh/tools/cmd/ssadump && ./ssadump -build=CFP %s\n", input)
+	hint = fmt.Sprintf("To dump SSA representation, run:\n%% go build github.com/Go-zh/tools/cmd/ssadump && ./ssadump -build=CFP %s\n", input)
 
 	iprog, err := conf.Load()
 	if err != nil {
@@ -248,7 +248,7 @@ func run(t *testing.T, dir, input string, success successPredicate) bool {
 	var out bytes.Buffer
 	interp.CapturedOutput = &out
 
-	hint = fmt.Sprintf("To trace execution, run:\n%% go build github.com/golang-zh/tools/cmd/ssadump && ./ssadump -build=C -run --interp=T %s\n", input)
+	hint = fmt.Sprintf("To trace execution, run:\n%% go build github.com/Go-zh/tools/cmd/ssadump && ./ssadump -build=C -run --interp=T %s\n", input)
 	exitCode := interp.Interpret(mainPkg, 0, &types.StdSizes{8, 8}, inputs[0], []string{})
 
 	// The definition of success varies with each file.

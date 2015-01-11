@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/types"
 )
 
 // Information about a specific installation of gccgo.

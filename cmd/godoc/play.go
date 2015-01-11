@@ -12,7 +12,7 @@ import (
 
 	// This package registers "/compile" and "/share" handlers
 	// that redirect to the golang.org playground.
-	_ "github.com/golang-zh/tools/playground"
+	_ "github.com/Go-zh/tools/playground"
 )
 
 func init() {

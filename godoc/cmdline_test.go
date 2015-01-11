@@ -12,8 +12,8 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/golang-zh/tools/godoc/vfs"
-	"github.com/golang-zh/tools/godoc/vfs/mapfs"
+	"github.com/Go-zh/tools/godoc/vfs"
+	"github.com/Go-zh/tools/godoc/vfs/mapfs"
 )
 
 // setupGoroot creates temporary directory to act as GOROOT when running tests

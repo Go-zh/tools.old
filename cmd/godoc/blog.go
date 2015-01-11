@@ -15,12 +15,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/golang-zh/tools/blog"
-	"github.com/golang-zh/tools/godoc/redirect"
+	"github.com/Go-zh/tools/blog"
+	"github.com/Go-zh/tools/godoc/redirect"
 )
 
 const (
-	blogRepo = "github.com/golang-zh/blog"
+	blogRepo = "github.com/Go-zh/blog"
 	blogURL  = "http://blog.zh-golang.appspot.com/"
 	blogPath = "/blog/"
 )

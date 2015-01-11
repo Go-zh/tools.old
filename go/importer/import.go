@@ -7,15 +7,15 @@
 // by R. Griesemer, Technical Report 156, ETH Zürich, 1991.
 
 // package importer implements an exporter and importer for Go export data.
-package importer // import "github.com/golang-zh/tools/go/importer"
+package importer // import "github.com/Go-zh/tools/go/importer"
 
 import (
 	"encoding/binary"
 	"fmt"
 	"go/token"
 
-	"github.com/golang-zh/tools/go/exact"
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/exact"
+	"github.com/Go-zh/tools/go/types"
 )
 
 // ImportData imports a package from the serialized package data

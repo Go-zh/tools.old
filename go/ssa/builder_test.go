@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/go/ssa"
-	"github.com/golang-zh/tools/go/ssa/ssautil"
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/go/ssa/ssautil"
+	"github.com/Go-zh/tools/go/types"
 )
 
 func isEmpty(f *ssa.Function) bool { return f.Blocks == nil }

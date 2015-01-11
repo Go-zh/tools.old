@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/golang-zh/tools/go/loader"
-	"github.com/golang-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/ssa"
 )
 
 // This program demonstrates how to run the SSA builder on a "Hello,
@@ -26,7 +26,7 @@ import (
 //
 // Build and run the ssadump.go program if you want a standalone tool
 // with similar functionality. It is located at
-// github.com/golang-zh/tools/cmd/ssadump.
+// github.com/Go-zh/tools/cmd/ssadump.
 //
 func Example() {
 	const hello = `

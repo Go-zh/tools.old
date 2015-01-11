@@ -35,7 +35,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/types"
 )
 
 var strictShadowing = flag.Bool("shadowstrict", false, "whether to be strict about shadowing; can be noisy")

@@ -12,7 +12,7 @@
 //   a comment syntax, etc.
 // - allow queries to nest, like Blaze query language.
 //
-package main // import "github.com/golang-zh/tools/cmd/digraph"
+package main // import "github.com/Go-zh/tools/cmd/digraph"
 
 import (
 	"bufio"
@@ -81,7 +81,7 @@ Example usage:
 
    Show the transitive closure of imports of the digraph tool itself:
    % go list -f '{{.ImportPath}}{{.Imports}}' ... | tr '[]' '  ' |
-         digraph forward github.com/golang-zh/tools/cmd/digraph
+         digraph forward github.com/Go-zh/tools/cmd/digraph
 
    Show which clothes (see above) must be donned before a jacket:
    %  digraph reverse jacket <clothes.txt

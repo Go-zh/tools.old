@@ -9,7 +9,7 @@ package ssa
 import (
 	"fmt"
 
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/types"
 )
 
 // Method returns the Function implementing method sel, building

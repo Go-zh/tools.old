@@ -5,7 +5,7 @@
 package pointer
 
 import (
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/types"
 )
 
 type constraint interface {

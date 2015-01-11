@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Package gccgoimporter implements Import for gccgo-generated object files.
-package gccgoimporter // import "github.com/golang-zh/tools/go/gccgoimporter"
+package gccgoimporter // import "github.com/Go-zh/tools/go/gccgoimporter"
 
 import (
 	"bytes"
@@ -16,8 +16,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/golang-zh/tools/go/importer"
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/go/importer"
+	"github.com/Go-zh/tools/go/types"
 )
 
 // A PackageInit describes an imported package that needs initialization.

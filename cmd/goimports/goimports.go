@@ -17,7 +17,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/golang-zh/tools/imports"
+	"github.com/Go-zh/tools/imports"
 )
 
 var (

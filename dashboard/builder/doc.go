@@ -55,4 +55,4 @@ If the Google Code credentials are not provided the archival step
 will be skipped.
 
 */
-package main // import "github.com/golang-zh/tools/dashboard/builder"
+package main // import "github.com/Go-zh/tools/dashboard/builder"

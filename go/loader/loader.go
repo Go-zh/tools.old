@@ -73,7 +73,7 @@
 // DEPENDENCY is a package loaded to satisfy an import in an initial
 // package or another dependency.
 //
-package loader // import "github.com/golang-zh/tools/go/loader"
+package loader // import "github.com/Go-zh/tools/go/loader"
 
 // 'go test', in-package test files, and import cycles
 // ---------------------------------------------------
@@ -136,9 +136,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/golang-zh/tools/astutil"
-	"github.com/golang-zh/tools/go/gcimporter"
-	"github.com/golang-zh/tools/go/types"
+	"github.com/Go-zh/tools/astutil"
+	"github.com/Go-zh/tools/go/gcimporter"
+	"github.com/Go-zh/tools/go/types"
 )
 
 // Config specifies the configuration for a program to load.
