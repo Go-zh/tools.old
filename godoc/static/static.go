@@ -1173,7 +1173,7 @@ function cgAddChild(tree, ul, cgn) {
     var query = window.location.search.substring(1);
     var vars = query.split("&");
     var langs = "", pair
-    // parse lang=en,zh querystring
+    // parse lang=en querystring
     for (var i = 0; i < vars.length; i++) {
       pair = vars[i].split("=");
       if (pair[0] == "lang") {
@@ -1181,12 +1181,12 @@ function cgAddChild(tree, ul, cgn) {
         break
       }
     }
-    // if en not enabled, don't show english translation
-    if (langs != "en") {
+    // if en enabled, show english translation
+    if (langs == "en") {
       texts = document.getElementsByTagName('div')
       for (var i in texts) {
         if (texts[i].className == "english") {
-          texts[i].className = "invisible_translation";
+          texts[i].className = "en_visible";
         }
       }
     }
@@ -3552,10 +3552,10 @@ a.error {
 
 /* Hide English translations. */
 div.english {
-	display: block;
-}
-.invisible_translation {
 	display: none;
+}
+.en_visible {
+	display: block;
 }
 
 /* Translator notes. */
