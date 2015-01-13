@@ -3552,11 +3552,12 @@ a.error {
 
 /* Hide English translations. */
 div.english {
-	display: none;
+	display: block;
 }
 .invisible_translation {
 	display: none;
 }
+
 /* Translator notes. */
 p.tnote {
 	background: #00f9e9;
