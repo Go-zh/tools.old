@@ -596,10 +596,10 @@ a.error {
 
 /* Hide English translations. */
 div.english {
-	display: block;
-}
-.invisible_translation {
 	display: none;
+}
+.en_visible {
+	display: block;
 }
 
 /* Translator notes. */
