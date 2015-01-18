@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Go-zh/tools/astutil"
+	"github.com/Go-zh/tools/go/ast/astutil"
 	"github.com/Go-zh/tools/go/exact"
 	"github.com/Go-zh/tools/go/loader"
 	"github.com/Go-zh/tools/go/ssa"

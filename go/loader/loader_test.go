@@ -5,17 +5,14 @@
 package loader_test
 
 import (
-	"bytes"
 	"fmt"
 	"go/build"
-	"io"
-	"io/ioutil"
-	"os"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
-	"time"
 
+	"github.com/Go-zh/tools/go/buildutil"
 	"github.com/Go-zh/tools/go/loader"
 )
 
@@ -116,28 +113,13 @@ func TestLoadFromArgsSource(t *testing.T) {
 	}
 }
 
-type fakeFileInfo struct{}
-
-func (fakeFileInfo) Name() string       { return "x.go" }
-func (fakeFileInfo) Sys() interface{}   { return nil }
-func (fakeFileInfo) ModTime() time.Time { return time.Time{} }
-func (fakeFileInfo) IsDir() bool        { return false }
-func (fakeFileInfo) Size() int64        { return 0 }
-func (fakeFileInfo) Mode() os.FileMode  { return 0644 }
-
-var justXgo = [1]os.FileInfo{fakeFileInfo{}} // ["x.go"]
-
+// Simplifying wrapper around buildutil.FakeContext for single-file packages.
 func fakeContext(pkgs map[string]string) *build.Context {
-	ctxt := build.Default // copy
-	ctxt.GOROOT = "/go"
-	ctxt.GOPATH = ""
-	ctxt.IsDir = func(path string) bool { return true }
-	ctxt.ReadDir = func(dir string) ([]os.FileInfo, error) { return justXgo[:], nil }
-	ctxt.OpenFile = func(path string) (io.ReadCloser, error) {
-		path = path[len("/go/src/"):]
-		return ioutil.NopCloser(bytes.NewBufferString(pkgs[path[0:1]])), nil
+	pkgs2 := make(map[string]map[string]string)
+	for path, content := range pkgs {
+		pkgs2[path] = map[string]string{"x.go": content}
 	}
-	return &ctxt
+	return buildutil.FakeContext(pkgs2)
 }
 
 func TestTransitivelyErrorFreeFlag(t *testing.T) {
@@ -200,6 +182,15 @@ func TestTransitivelyErrorFreeFlag(t *testing.T) {
 	}
 }
 
+func hasError(errors []error, substr string) bool {
+	for _, err := range errors {
+		if strings.Contains(err.Error(), substr) {
+			return true
+		}
+	}
+	return false
+}
+
 // Test that both syntax (scan/parse) and type errors are both recorded
 // (in PackageInfo.Errors) and reported (via Config.TypeChecker.Error).
 func TestErrorReporting(t *testing.T) {
@@ -212,9 +203,12 @@ func TestErrorReporting(t *testing.T) {
 		SourceImports: true,
 		Build:         fakeContext(pkgs),
 	}
+	var mu sync.Mutex
 	var allErrors []error
 	conf.TypeChecker.Error = func(err error) {
+		mu.Lock()
 		allErrors = append(allErrors, err)
+		mu.Unlock()
 	}
 	conf.Import("a")
 
@@ -224,15 +218,6 @@ func TestErrorReporting(t *testing.T) {
 	}
 	if prog == nil {
 		t.Fatalf("Load returned nil *Program")
-	}
-
-	hasError := func(errors []error, substr string) bool {
-		for _, err := range errors {
-			if strings.Contains(err.Error(), substr) {
-				return true
-			}
-		}
-		return false
 	}
 
 	// TODO(adonovan): test keys of ImportMap.
@@ -256,4 +241,99 @@ func TestErrorReporting(t *testing.T) {
 		!hasError(allErrors, "rune literal not terminated") {
 		t.Errorf("allErrors = %v, want both syntax and type errors", allErrors)
 	}
+}
+
+func TestCycles(t *testing.T) {
+	for _, test := range []struct {
+		descr   string
+		ctxt    *build.Context
+		wantErr string
+	}{
+		{
+			"self-cycle",
+			fakeContext(map[string]string{
+				"main":      `package main; import _ "selfcycle"`,
+				"selfcycle": `package selfcycle; import _ "selfcycle"`,
+			}),
+			`import cycle: selfcycle -> selfcycle`,
+		},
+		{
+			"three-package cycle",
+			fakeContext(map[string]string{
+				"main": `package main; import _ "a"`,
+				"a":    `package a; import _ "b"`,
+				"b":    `package b; import _ "c"`,
+				"c":    `package c; import _ "a"`,
+			}),
+			`import cycle: c -> a -> b -> c`,
+		},
+		{
+			"self-cycle in dependency of test file",
+			buildutil.FakeContext(map[string]map[string]string{
+				"main": {
+					"main.go":      `package main`,
+					"main_test.go": `package main; import _ "a"`,
+				},
+				"a": {
+					"a.go": `package a; import _ "a"`,
+				},
+			}),
+			`import cycle: a -> a`,
+		},
+		// TODO(adonovan): fix: these fail
+		// {
+		// 	"two-package cycle in dependency of test file",
+		// 	buildutil.FakeContext(map[string]map[string]string{
+		// 		"main": {
+		// 			"main.go":      `package main`,
+		// 			"main_test.go": `package main; import _ "a"`,
+		// 		},
+		// 		"a": {
+		// 			"a.go": `package a; import _ "main"`,
+		// 		},
+		// 	}),
+		// 	`import cycle: main -> a -> main`,
+		// },
+		// {
+		// 	"self-cycle in augmented package",
+		// 	buildutil.FakeContext(map[string]map[string]string{
+		// 		"main": {
+		// 			"main.go":      `package main`,
+		// 			"main_test.go": `package main; import _ "main"`,
+		// 		},
+		// 	}),
+		// 	`import cycle: main -> main`,
+		// },
+	} {
+		conf := loader.Config{
+			AllowErrors:   true,
+			SourceImports: true,
+			Build:         test.ctxt,
+		}
+		var mu sync.Mutex
+		var allErrors []error
+		conf.TypeChecker.Error = func(err error) {
+			mu.Lock()
+			allErrors = append(allErrors, err)
+			mu.Unlock()
+		}
+		conf.ImportWithTests("main")
+
+		prog, err := conf.Load()
+		if err != nil {
+			t.Errorf("%s: Load failed: %s", test.descr, err)
+		}
+		if prog == nil {
+			t.Fatalf("%s: Load returned nil *Program", test.descr)
+		}
+
+		if !hasError(allErrors, test.wantErr) {
+			t.Errorf("%s: Load() errors = %q, want %q",
+				test.descr, allErrors, test.wantErr)
+		}
+	}
+
+	// TODO(adonovan):
+	// - Test that in a legal test cycle, none of the symbols
+	//   defined by augmentation are visible via import.
 }

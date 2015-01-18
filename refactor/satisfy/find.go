@@ -49,7 +49,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/Go-zh/tools/astutil"
+	"github.com/Go-zh/tools/go/ast/astutil"
 	"github.com/Go-zh/tools/go/types"
 )
 

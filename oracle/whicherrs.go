@@ -10,7 +10,7 @@ import (
 	"go/token"
 	"sort"
 
-	"github.com/Go-zh/tools/astutil"
+	"github.com/Go-zh/tools/go/ast/astutil"
 	"github.com/Go-zh/tools/go/ssa"
 	"github.com/Go-zh/tools/go/ssa/ssautil"
 	"github.com/Go-zh/tools/go/types"
