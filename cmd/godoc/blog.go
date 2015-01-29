@@ -21,7 +21,7 @@ import (
 
 const (
 	blogRepo = "github.com/Go-zh/blog"
-	blogURL  = "http://blog.zh-golang.appspot.com/"
+	blogURL  = "http://blog.go-zh.org/"
 	blogPath = "/blog/"
 )
 
