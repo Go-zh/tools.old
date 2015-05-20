@@ -26,7 +26,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"text/template"
 
 	"github.com/Go-zh/tools/go/buildutil"
@@ -133,13 +132,12 @@ func srcDir(ctxt *build.Context, pkg string) (string, error) {
 // subpackages returns the set of packages in the given srcDir whose
 // import paths start with dir.
 func subpackages(ctxt *build.Context, srcDir string, dir string) map[string]bool {
-	var mu sync.Mutex
 	subs := map[string]bool{dir: true}
 
 	// Find all packages under srcDir whose import paths start with dir.
 	buildutil.ForEachPackage(ctxt, func(pkg string, err error) {
 		if err != nil {
-			log.Fatalf("unexpected error in ForEackPackage: %v", err)
+			log.Fatalf("unexpected error in ForEachPackage: %v", err)
 		}
 
 		if !strings.HasPrefix(pkg, path.Join(dir, "")) {
@@ -157,9 +155,7 @@ func subpackages(ctxt *build.Context, srcDir string, dir string) map[string]bool
 			return
 		}
 
-		mu.Lock()
 		subs[pkg] = true
-		mu.Unlock()
 	})
 
 	return subs
@@ -248,19 +244,13 @@ func (m *mover) move() error {
 	// None of the subpackages will change their name---only the from package
 	// itself will.
 	for p := range m.rev[m.from] {
-		_, err := importName(
-			m.iprog, m.iprog.Imported[p], m.from, path.Base(m.from), newName)
-		if err != nil {
+		if err := importName(m.iprog, m.iprog.Imported[p], m.from, path.Base(m.from), newName); err != nil {
 			return err
 		}
 	}
 
-	// For each affected package, rewrite all imports of the package to
-	// use the new import path.
+	// Update import paths for all imports by affected packages.
 	for ap := range m.affectedPackages {
-		if ap == m.from {
-			continue
-		}
 		info, ok := m.iprog.Imported[ap]
 		if !ok {
 			log.Fatalf("unexpected: package %s is not in import map", ap)

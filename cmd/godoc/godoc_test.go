@@ -70,6 +70,9 @@ var godocTests = []struct {
 // TODO(adonovan): opt: do this at most once, and do the cleanup
 // exactly once.  How though?  There's no atexit.
 func buildGodoc(t *testing.T) (bin string, cleanup func()) {
+	if runtime.GOARCH == "arm" {
+		t.Skip("skipping test on arm platforms; too slow")
+	}
 	tmp, err := ioutil.TempDir("", "godoc-regtest-")
 	if err != nil {
 		t.Fatal(err)
@@ -131,18 +134,30 @@ func serverAddress(t *testing.T) string {
 	return ln.Addr().String()
 }
 
+const (
+	startTimeout = 5 * time.Minute
+	pollInterval = 200 * time.Millisecond
+)
+
+var indexingMsg = []byte("Indexing in progress: result may be inaccurate")
+
 func waitForServer(t *testing.T, address string) {
-	// Poll every 50ms for a total of 5s.
-	for i := 0; i < 100; i++ {
-		time.Sleep(50 * time.Millisecond)
-		conn, err := net.Dial("tcp", address)
+	// "health check" duplicated from x/tools/cmd/tipgodoc/tip.go
+	deadline := time.Now().Add(startTimeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(pollInterval)
+		res, err := http.Get(fmt.Sprintf("http://%v/search?q=FALLTHROUGH", address))
 		if err != nil {
 			continue
 		}
-		conn.Close()
-		return
+		rbody, err := ioutil.ReadAll(res.Body)
+		res.Body.Close()
+		if err == nil && res.StatusCode == http.StatusOK &&
+			!bytes.Contains(rbody, indexingMsg) {
+			return
+		}
 	}
-	t.Fatalf("Server %q failed to respond in 5 seconds", address)
+	t.Fatalf("Server %q failed to respond in %v", address, startTimeout)
 }
 
 func killAndWait(cmd *exec.Cmd) {
@@ -155,7 +170,7 @@ func TestWeb(t *testing.T) {
 	bin, cleanup := buildGodoc(t)
 	defer cleanup()
 	addr := serverAddress(t)
-	cmd := exec.Command(bin, fmt.Sprintf("-http=%s", addr))
+	cmd := exec.Command(bin, fmt.Sprintf("-http=%s", addr), "-index", "-index_interval=-1s")
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	cmd.Args[0] = "godoc"
@@ -205,6 +220,15 @@ func TestWeb(t *testing.T) {
 			},
 			dontmatch: []string{
 				"cmd/gc",
+			},
+		},
+		{
+			path: "/search?q=notwithstanding",
+			match: []string{
+				"/src",
+			},
+			dontmatch: []string{
+				"/pkg/bootstrap",
 			},
 		},
 	}

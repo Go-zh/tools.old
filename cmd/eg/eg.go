@@ -6,6 +6,7 @@ package main // import "github.com/Go-zh/tools/cmd/eg"
 import (
 	"flag"
 	"fmt"
+	"go/build"
 	"go/parser"
 	"go/printer"
 	"go/token"
@@ -13,6 +14,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/Go-zh/tools/go/buildutil"
 	"github.com/Go-zh/tools/go/loader"
 	"github.com/Go-zh/tools/refactor/eg"
 )
@@ -26,12 +28,21 @@ var (
 	verboseFlag    = flag.Bool("v", false, "show verbose matcher diagnostics")
 )
 
+func init() {
+	flag.Var((*buildutil.TagsFlag)(&build.Default.BuildTags), "tags", buildutil.TagsFlagDoc)
+}
+
 const usage = `eg: an example-based refactoring tool.
 
 Usage: eg -t template.go [-w] [-transitive] <args>...
--t template.go	specifies the template file (use -help to see explanation)
--w          	causes files to be re-written in place.
--transitive 	causes all dependencies to be refactored too.
+
+-help            show detailed help message
+-t template.go	 specifies the template file (use -help to see explanation)
+-w          	 causes files to be re-written in place.
+-transitive 	 causes all dependencies to be refactored too.
+-v               show verbose matcher diagnostics
+-beforeedit cmd  a command to exec before each file is modified.
+                 "{}" represents the name of the file.
 ` + loader.FromArgsUsage
 
 func main() {
@@ -50,25 +61,22 @@ func doMain() error {
 		os.Exit(2)
 	}
 
+	if len(args) == 0 {
+		fmt.Fprint(os.Stderr, usage)
+		os.Exit(1)
+	}
+
 	if *templateFlag == "" {
 		return fmt.Errorf("no -t template.go file specified")
 	}
 
 	conf := loader.Config{
-		Fset:          token.NewFileSet(),
-		ParserMode:    parser.ParseComments,
-		SourceImports: true,
+		Fset:       token.NewFileSet(),
+		ParserMode: parser.ParseComments,
 	}
 
 	// The first Created package is the template.
-	if err := conf.CreateFromFilenames("template", *templateFlag); err != nil {
-		return err //  e.g. "foo.go:1: syntax error"
-	}
-
-	if len(args) == 0 {
-		fmt.Fprint(os.Stderr, usage)
-		os.Exit(1)
-	}
+	conf.CreateFromFilenames("template", *templateFlag)
 
 	if _, err := conf.FromArgs(args, true); err != nil {
 		return err

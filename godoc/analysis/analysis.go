@@ -57,6 +57,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Go-zh/tools/go/exact"
 	"github.com/Go-zh/tools/go/loader"
 	"github.com/Go-zh/tools/go/pointer"
 	"github.com/Go-zh/tools/go/ssa"
@@ -337,8 +338,7 @@ func (a *analysis) posURL(pos token.Pos, len int) string {
 //
 func Run(pta bool, result *Result) {
 	conf := loader.Config{
-		SourceImports: true,
-		AllowErrors:   true,
+		AllowErrors: true,
 	}
 
 	// Silence the default error handler.
@@ -393,13 +393,16 @@ func Run(pta bool, result *Result) {
 
 	// Create SSA-form program representation.
 	// Only the transitively error-free packages are used.
-	prog := ssa.Create(iprog, ssa.GlobalDebug)
+	prog := ssautil.CreateProgram(iprog, ssa.GlobalDebug)
 
 	// Compute the set of main packages, including testmain.
 	allPackages := prog.AllPackages()
 	var mainPkgs []*ssa.Package
 	if testmain := prog.CreateTestMainPackage(allPackages...); testmain != nil {
 		mainPkgs = append(mainPkgs, testmain)
+		if p := testmain.Const("packages"); p != nil {
+			log.Printf("Tested packages: %v", exact.StringVal(p.Value.Value))
+		}
 	}
 	for _, pkg := range allPackages {
 		if pkg.Object.Name() == "main" && pkg.Func("main") != nil {

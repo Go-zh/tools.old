@@ -8,6 +8,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,15 +25,22 @@ import (
 )
 
 const (
-	repoURL = "https://go.googlesource.com/"
-	metaURL = "https://go.googlesource.com/?b=master&format=JSON"
+	repoURL      = "https://go.googlesource.com/"
+	metaURL      = "https://go.googlesource.com/?b=master&format=JSON"
+	startTimeout = 5 * time.Minute
 )
+
+var indexingMsg = []byte("Indexing in progress: result may be inaccurate")
 
 func main() {
 	p := new(Proxy)
 	go p.run()
 	http.Handle("/", p)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		p.stop()
+		log.Fatal(err)
+	}
 }
 
 // Proxy implements the tip.golang.org server: a reverse-proxy
@@ -78,6 +86,14 @@ func (p *Proxy) run() {
 	for {
 		p.poll()
 		time.Sleep(30 * time.Second)
+	}
+}
+
+func (p *Proxy) stop() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cmd != nil {
+		p.cmd.Process.Kill()
 	}
 }
 
@@ -151,7 +167,11 @@ func initSide(side, goHash, toolsHash string) (godoc *exec.Cmd, hostport string,
 	}
 	goBin := filepath.Join(goDir, "bin/go")
 	install := exec.Command(goBin, "install", "golang.org/x/tools/cmd/godoc")
-	install.Env = []string{"GOROOT=" + goDir, "GOPATH=" + filepath.Join(dir, "gopath")}
+	install.Env = []string{
+		"GOROOT=" + goDir,
+		"GOPATH=" + filepath.Join(dir, "gopath"),
+		"GOROOT_BOOTSTRAP=" + os.Getenv("GOROOT_BOOTSTRAP"),
+	}
 	if err := runErr(install); err != nil {
 		return nil, "", err
 	}
@@ -161,7 +181,7 @@ func initSide(side, goHash, toolsHash string) (godoc *exec.Cmd, hostport string,
 	if side == "b" {
 		hostport = "localhost:8082"
 	}
-	godoc = exec.Command(godocBin, "-http="+hostport)
+	godoc = exec.Command(godocBin, "-http="+hostport, "-index", "-index_interval=-1s")
 	godoc.Env = []string{"GOROOT=" + goDir}
 	// TODO(adg): log this somewhere useful
 	godoc.Stdout = os.Stdout
@@ -176,18 +196,22 @@ func initSide(side, goHash, toolsHash string) (godoc *exec.Cmd, hostport string,
 		}
 	}()
 
-	for i := 0; i < 15; i++ {
+	deadline := time.Now().Add(startTimeout)
+	for time.Now().Before(deadline) {
 		time.Sleep(time.Second)
 		var res *http.Response
-		res, err = http.Get(fmt.Sprintf("http://%v/", hostport))
+		res, err = http.Get(fmt.Sprintf("http://%v/search?q=FALLTHROUGH", hostport))
 		if err != nil {
 			continue
 		}
+		rbody, err := ioutil.ReadAll(res.Body)
 		res.Body.Close()
-		if res.StatusCode == http.StatusOK {
+		if err == nil && res.StatusCode == http.StatusOK &&
+			!bytes.Contains(rbody, indexingMsg) {
 			return godoc, hostport, nil
 		}
 	}
+	godoc.Process.Kill()
 	return nil, "", fmt.Errorf("timed out waiting for side %v at %v (%v)", side, hostport, err)
 }
 

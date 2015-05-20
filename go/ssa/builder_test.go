@@ -6,6 +6,9 @@ package ssa_test
 
 import (
 	"bytes"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"reflect"
 	"sort"
 	"strings"
@@ -15,14 +18,16 @@ import (
 	"github.com/Go-zh/tools/go/ssa"
 	"github.com/Go-zh/tools/go/ssa/ssautil"
 	"github.com/Go-zh/tools/go/types"
+
+	_ "github.com/Go-zh/tools/go/gcimporter"
 )
 
 func isEmpty(f *ssa.Function) bool { return f.Blocks == nil }
 
 // Tests that programs partially loaded from gc object files contain
 // functions with no code for the external portions, but are otherwise ok.
-func TestExternalPackages(t *testing.T) {
-	test := `
+func TestBuildPackage(t *testing.T) {
+	input := `
 package main
 
 import (
@@ -42,24 +47,22 @@ func main() {
 }
 `
 
-	// Create a single-file main package.
-	var conf loader.Config
-	f, err := conf.ParseFile("<input>", test)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	conf.CreateFromFiles("main", f)
-
-	iprog, err := conf.Load()
+	// Parse the file.
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "input.go", input, 0)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	prog := ssa.Create(iprog, ssa.SanityCheckFunctions)
-	mainPkg := prog.Package(iprog.Created[0].Pkg)
-	mainPkg.Build()
+	// Build an SSA program from the parsed file.
+	// Load its dependencies from gc binary export data.
+	mainPkg, _, err := ssautil.BuildPackage(new(types.Config), fset,
+		types.NewPackage("main", ""), []*ast.File{f}, ssa.SanityCheckFunctions)
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	// The main package, its direct and indirect dependencies are loaded.
 	deps := []string{
@@ -69,6 +72,7 @@ func main() {
 		"errors", "fmt", "os", "runtime",
 	}
 
+	prog := mainPkg.Prog
 	all := prog.AllPackages()
 	if len(all) <= len(deps) {
 		t.Errorf("unexpected set of loaded packages: %q", all)
@@ -151,8 +155,8 @@ func main() {
 	}
 }
 
-// TestTypesWithMethodSets tests that Package.TypesWithMethodSets includes all necessary types.
-func TestTypesWithMethodSets(t *testing.T) {
+// TestRuntimeTypes tests that (*Program).RuntimeTypes() includes all necessary types.
+func TestRuntimeTypes(t *testing.T) {
 	tests := []struct {
 		input string
 		want  []string
@@ -167,7 +171,7 @@ func TestTypesWithMethodSets(t *testing.T) {
 		},
 		// Subcomponents of type of exported package-level var are needed.
 		{`package C; import "bytes"; var V struct {*bytes.Buffer}`,
-			[]string{"*struct{*bytes.Buffer}", "struct{*bytes.Buffer}"},
+			[]string{"*bytes.Buffer", "*struct{*bytes.Buffer}", "struct{*bytes.Buffer}"},
 		},
 		// Subcomponents of type of unexported package-level var are not needed.
 		{`package D; import "bytes"; var v struct {*bytes.Buffer}`,
@@ -175,7 +179,7 @@ func TestTypesWithMethodSets(t *testing.T) {
 		},
 		// Subcomponents of type of exported package-level function are needed.
 		{`package E; import "bytes"; func F(struct {*bytes.Buffer}) {}`,
-			[]string{"struct{*bytes.Buffer}"},
+			[]string{"*bytes.Buffer", "struct{*bytes.Buffer}"},
 		},
 		// Subcomponents of type of unexported package-level function are not needed.
 		{`package F; import "bytes"; func f(struct {*bytes.Buffer}) {}`,
@@ -187,11 +191,11 @@ func TestTypesWithMethodSets(t *testing.T) {
 		},
 		// ...unless used by MakeInterface.
 		{`package G2; import "bytes"; type x struct{}; func (x) G(struct {*bytes.Buffer}) {}; var v interface{} = x{}`,
-			[]string{"*p.x", "p.x", "struct{*bytes.Buffer}"},
+			[]string{"*bytes.Buffer", "*p.x", "p.x", "struct{*bytes.Buffer}"},
 		},
 		// Subcomponents of type of unexported method are not needed.
 		{`package I; import "bytes"; type X struct{}; func (X) G(struct {*bytes.Buffer}) {}`,
-			[]string{"*p.X", "p.X", "struct{*bytes.Buffer}"},
+			[]string{"*bytes.Buffer", "*p.X", "p.X", "struct{*bytes.Buffer}"},
 		},
 		// Local types aren't needed.
 		{`package J; import "bytes"; func f() { type T struct {*bytes.Buffer}; var t T; _ = t }`,
@@ -199,11 +203,11 @@ func TestTypesWithMethodSets(t *testing.T) {
 		},
 		// ...unless used by MakeInterface.
 		{`package K; import "bytes"; func f() { type T struct {*bytes.Buffer}; _ = interface{}(T{}) }`,
-			[]string{"*p.T", "p.T"},
+			[]string{"*bytes.Buffer", "*p.T", "p.T"},
 		},
 		// Types used as operand of MakeInterface are needed.
 		{`package L; import "bytes"; func f() { _ = interface{}(struct{*bytes.Buffer}{}) }`,
-			[]string{"struct{*bytes.Buffer}"},
+			[]string{"*bytes.Buffer", "struct{*bytes.Buffer}"},
 		},
 		// MakeInterface is optimized away when storing to a blank.
 		{`package M; import "bytes"; var _ interface{} = struct{*bytes.Buffer}{}`,
@@ -211,37 +215,37 @@ func TestTypesWithMethodSets(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		// Create a single-file main package.
-		var conf loader.Config
-		f, err := conf.ParseFile("<input>", test.input)
+		// Parse the file.
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, "input.go", test.input, 0)
 		if err != nil {
 			t.Errorf("test %q: %s", test.input[:15], err)
 			continue
 		}
-		conf.CreateFromFiles("p", f)
 
-		iprog, err := conf.Load()
+		// Create a single-file main package.
+		// Load dependencies from gc binary export data.
+		ssapkg, _, err := ssautil.BuildPackage(new(types.Config), fset,
+			types.NewPackage("p", ""), []*ast.File{f}, ssa.SanityCheckFunctions)
 		if err != nil {
-			t.Errorf("test 'package %s': Load: %s", f.Name.Name, err)
+			t.Errorf("test %q: %s", test.input[:15], err)
 			continue
 		}
-		prog := ssa.Create(iprog, ssa.SanityCheckFunctions)
-		mainPkg := prog.Package(iprog.Created[0].Pkg)
-		prog.BuildAll()
 
 		var typstrs []string
-		for _, T := range mainPkg.TypesWithMethodSets() {
+		for _, T := range ssapkg.Prog.RuntimeTypes() {
 			typstrs = append(typstrs, T.String())
 		}
 		sort.Strings(typstrs)
 
 		if !reflect.DeepEqual(typstrs, test.want) {
-			t.Errorf("test 'package %s': got %q, want %q", f.Name.Name, typstrs, test.want)
+			t.Errorf("test 'package %s': got %q, want %q",
+				f.Name.Name, typstrs, test.want)
 		}
 	}
 }
 
-// Tests that synthesized init functions are correctly formed.
+// TestInit tests that synthesized init functions are correctly formed.
 // Bare init functions omit calls to dependent init functions and the use of
 // an init guard. They are useful in cases where the client uses a different
 // calling convention for init functions, or cases where it is easier for a
@@ -292,13 +296,13 @@ func init():
 		}
 		conf.CreateFromFiles(f.Name.Name, f)
 
-		iprog, err := conf.Load()
+		lprog, err := conf.Load()
 		if err != nil {
 			t.Errorf("test 'package %s': Load: %s", f.Name.Name, err)
 			continue
 		}
-		prog := ssa.Create(iprog, test.mode)
-		mainPkg := prog.Package(iprog.Created[0].Pkg)
+		prog := ssautil.CreateProgram(lprog, test.mode)
+		mainPkg := prog.Package(lprog.Created[0].Pkg)
 		prog.BuildAll()
 		initFunc := mainPkg.Func("init")
 		if initFunc == nil {
@@ -363,13 +367,13 @@ var (
 	conf.CreateFromFiles(f.Name.Name, f)
 
 	// Load
-	iprog, err := conf.Load()
+	lprog, err := conf.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 
 	// Create and build SSA
-	prog := ssa.Create(iprog, 0)
+	prog := ssautil.CreateProgram(lprog, 0)
 	prog.BuildAll()
 
 	// Enumerate reachable synthetic functions

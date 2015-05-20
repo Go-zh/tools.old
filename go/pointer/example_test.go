@@ -12,6 +12,7 @@ import (
 	"github.com/Go-zh/tools/go/loader"
 	"github.com/Go-zh/tools/go/pointer"
 	"github.com/Go-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/go/ssa/ssautil"
 )
 
 // This program demonstrates how to use the pointer analysis to
@@ -41,10 +42,10 @@ func main() {
 	i.f(x) // dynamic method call
 }
 `
-	// Construct a loader.
-	conf := loader.Config{SourceImports: true}
+	var conf loader.Config
 
-	// Parse the input file.
+	// Parse the input file, a string.
+	// (Command-line tools should use conf.FromArgs.)
 	file, err := conf.ParseFile("myprog.go", myprog)
 	if err != nil {
 		fmt.Print(err) // parse error
@@ -61,7 +62,7 @@ func main() {
 	}
 
 	// Create SSA-form program representation.
-	prog := ssa.Create(iprog, 0)
+	prog := ssautil.CreateProgram(iprog, 0)
 	mainPkg := prog.Package(iprog.Created[0].Pkg)
 
 	// Build SSA code for bodies of all functions in the whole program.

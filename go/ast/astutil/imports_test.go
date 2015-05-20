@@ -315,6 +315,31 @@ import "time"
 type T time.Time
 `,
 	},
+
+	// Issue 9961: Match prefixes using path segments rather than bytes
+	{
+		name: "issue 9961",
+		pkg:  "regexp",
+		in: `package main
+
+import (
+	"flag"
+	"testing"
+
+	"rsc.io/p"
+)
+`,
+		out: `package main
+
+import (
+	"flag"
+	"regexp"
+	"testing"
+
+	"rsc.io/p"
+)
+`,
+	},
 }
 
 func TestAddImport(t *testing.T) {
@@ -364,12 +389,12 @@ import (
 type I int
 `)
 	// The AddImport order here matters.
-	AddImport(fset, file, "golang.org/x/tools/go/ast/astutil")
+	AddImport(fset, file, "github.com/Go-zh/tools/go/ast/astutil")
 	AddImport(fset, file, "os")
 	want := `package main
 
 import (
-	"golang.org/x/tools/go/ast/astutil"
+	"github.com/Go-zh/tools/go/ast/astutil"
 	"os"
 )
 

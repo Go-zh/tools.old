@@ -21,8 +21,7 @@ vets the files named, all of which must be in the same package.
 
 By directory:
 	go tool vet source/directory
-recursively descends the directory, vetting each file in isolation.
-Package-level type-checking is disabled, so the vetting is weaker.
+recursively descends the directory, vetting each package it finds.
 
 Vet's exit code is 2 for erroneous invocation of the tool, 1 if a
 problem was reported, and 0 otherwise. Note that the tool does not
@@ -150,6 +149,15 @@ A conversion from uintptr to unsafe.Pointer is invalid if it implies that
 there is a uintptr-typed word in memory that holds a pointer value,
 because that word will be invisible to stack copying and to the garbage
 collector.
+
+Unused result of certain function calls
+
+Flag: -unusedresult
+
+Calls to well-known functions and methods that return a value that is
+discarded.  By default, this includes functions like fmt.Errorf and
+fmt.Sprintf and methods like String and Error. The flags -unusedfuncs
+and -unusedstringmethods control the set.
 
 Shifts
 

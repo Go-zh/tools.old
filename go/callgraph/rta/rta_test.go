@@ -19,6 +19,7 @@ import (
 	"github.com/Go-zh/tools/go/callgraph/rta"
 	"github.com/Go-zh/tools/go/loader"
 	"github.com/Go-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/go/ssa/ssautil"
 	"github.com/Go-zh/tools/go/types"
 )
 
@@ -55,8 +56,7 @@ func TestRTA(t *testing.T) {
 		}
 
 		conf := loader.Config{
-			SourceImports: true,
-			ParserMode:    parser.ParseComments,
+			ParserMode: parser.ParseComments,
 		}
 		f, err := conf.ParseFile(filename, content)
 		if err != nil {
@@ -77,7 +77,7 @@ func TestRTA(t *testing.T) {
 			continue
 		}
 
-		prog := ssa.Create(iprog, 0)
+		prog := ssautil.CreateProgram(iprog, 0)
 		mainPkg := prog.Package(iprog.Created[0].Pkg)
 		prog.BuildAll()
 

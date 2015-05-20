@@ -19,6 +19,7 @@ import (
 	"github.com/Go-zh/tools/go/loader"
 	"github.com/Go-zh/tools/go/ssa"
 	"github.com/Go-zh/tools/go/ssa/interp"
+	"github.com/Go-zh/tools/go/ssa/ssautil"
 	"github.com/Go-zh/tools/go/types"
 )
 
@@ -157,7 +158,6 @@ var gorootSrcTests = []string{
 	"encoding/csv",
 	"encoding/hex",
 	"encoding/pem",
-	"hash/crc32",
 	// "testing", // TODO(adonovan): implement runtime.Goexit correctly
 	"text/scanner",
 	"unicode",
@@ -167,6 +167,7 @@ var gorootSrcTests = []string{
 	// "hash/adler32",
 
 	// TODO(adonovan): packages with Examples require os.Pipe (unimplemented):
+	// "hash/crc32",
 	// "unicode/utf8",
 	// "log",
 	// "path",
@@ -188,7 +189,7 @@ func run(t *testing.T, dir, input string, success successPredicate) bool {
 		inputs = append(inputs, i)
 	}
 
-	conf := loader.Config{SourceImports: true}
+	var conf loader.Config
 	if _, err := conf.FromArgs(inputs, true); err != nil {
 		t.Errorf("FromArgs(%s) failed: %s", inputs, err)
 		return false
@@ -209,7 +210,7 @@ func run(t *testing.T, dir, input string, success successPredicate) bool {
 		interp.CapturedOutput = nil
 	}()
 
-	hint = fmt.Sprintf("To dump SSA representation, run:\n%% go build github.com/Go-zh/tools/cmd/ssadump && ./ssadump -build=CFP %s\n", input)
+	hint = fmt.Sprintf("To dump SSA representation, run:\n%% go build golang.org/x/tools/cmd/ssadump && ./ssadump -build=CFP %s\n", input)
 
 	iprog, err := conf.Load()
 	if err != nil {
@@ -217,7 +218,7 @@ func run(t *testing.T, dir, input string, success successPredicate) bool {
 		return false
 	}
 
-	prog := ssa.Create(iprog, ssa.SanityCheckFunctions)
+	prog := ssautil.CreateProgram(iprog, ssa.SanityCheckFunctions)
 	prog.BuildAll()
 
 	var mainPkg *ssa.Package
@@ -248,7 +249,7 @@ func run(t *testing.T, dir, input string, success successPredicate) bool {
 	var out bytes.Buffer
 	interp.CapturedOutput = &out
 
-	hint = fmt.Sprintf("To trace execution, run:\n%% go build github.com/Go-zh/tools/cmd/ssadump && ./ssadump -build=C -run --interp=T %s\n", input)
+	hint = fmt.Sprintf("To trace execution, run:\n%% go build golang.org/x/tools/cmd/ssadump && ./ssadump -build=C -run --interp=T %s\n", input)
 	exitCode := interp.Interpret(mainPkg, 0, &types.StdSizes{8, 8}, inputs[0], []string{})
 
 	// The definition of success varies with each file.
@@ -340,14 +341,12 @@ func TestTestmainPackage(t *testing.T) {
 // CreateTestMainPackage should return nil if there were no tests.
 func TestNullTestmainPackage(t *testing.T) {
 	var conf loader.Config
-	if err := conf.CreateFromFilenames("", "testdata/b_test.go"); err != nil {
-		t.Fatalf("ParseFile failed: %s", err)
-	}
+	conf.CreateFromFilenames("", "testdata/b_test.go")
 	iprog, err := conf.Load()
 	if err != nil {
 		t.Fatalf("CreatePackages failed: %s", err)
 	}
-	prog := ssa.Create(iprog, ssa.SanityCheckFunctions)
+	prog := ssautil.CreateProgram(iprog, ssa.SanityCheckFunctions)
 	mainPkg := prog.Package(iprog.Created[0].Pkg)
 	if mainPkg.Func("main") != nil {
 		t.Fatalf("unexpected main function")

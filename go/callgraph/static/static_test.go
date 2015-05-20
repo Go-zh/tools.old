@@ -14,7 +14,7 @@ import (
 	"github.com/Go-zh/tools/go/callgraph"
 	"github.com/Go-zh/tools/go/callgraph/static"
 	"github.com/Go-zh/tools/go/loader"
-	"github.com/Go-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/go/ssa/ssautil"
 )
 
 const input = `package P
@@ -62,7 +62,7 @@ func TestStatic(t *testing.T) {
 
 	P := iprog.Created[0].Pkg
 
-	prog := ssa.Create(iprog, 0)
+	prog := ssautil.CreateProgram(iprog, 0)
 	prog.BuildAll()
 
 	cg := static.CallGraph(prog)

@@ -32,16 +32,10 @@ func TestStdlib(t *testing.T) {
 		"github.com/Go-zh/tools/refactor/lexical")
 
 	// Load, parse and type-check the program.
-	conf := loader.Config{
-		Build:         &ctxt,
-		SourceImports: true,
-	}
+	conf := loader.Config{Build: &ctxt}
 	for _, path := range pkgs {
-		if err := conf.ImportWithTests(path); err != nil {
-			t.Error(err)
-		}
+		conf.ImportWithTests(path)
 	}
-
 	iprog, err := conf.Load()
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)

@@ -8,6 +8,7 @@
 package rename // import "github.com/Go-zh/tools/refactor/rename"
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -15,9 +16,9 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"io/ioutil"
 	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -55,12 +56,11 @@ Flags:
   "encoding/json"::x                    object x anywhere within a package
   json.go::x                            object x within file json.go
 
+           Double-quotes must be escaped when writing a shell command.
+           Quotes may be omitted for single-segment import paths such as "fmt".
+
            For methods, the parens and '*' on the receiver type are both
            optional.
-
-           Double-quotes may be omitted for single-segment import paths
-           such as fmt.  They may need to be escaped when writing a
-           shell command.
 
            It is an error if one of the ::x queries matches multiple
            objects.
@@ -99,7 +99,7 @@ Examples:
 
   Rename the object whose identifier is at byte offset 123 within file file.go.
 
-% gorename -from '"bytes".Buffer.Len' -to Size
+% gorename -from \"bytes\".Buffer.Len' -to Size
 
   Rename the "Len" method of the *bytes.Buffer type to "Size".
 
@@ -164,10 +164,9 @@ var reportError = func(posn token.Position, message string) {
 
 // importName renames imports of the package with the given path in
 // the given package.  If fromName is not empty, only imports as
-// fromName will be renamed.  Even if renaming is successful, there
-// may be some files that are unchanged; they are reported in
-// unchangedFiles.
-func importName(iprog *loader.Program, info *loader.PackageInfo, fromPath, fromName, to string) (unchangedFiles []string, err error) {
+// fromName will be renamed.  If the renaming would lead to a conflict,
+// the file is left unchanged.
+func importName(iprog *loader.Program, info *loader.PackageInfo, fromPath, fromName, to string) error {
 	for _, f := range info.Files {
 		var from types.Object
 		for _, imp := range f.Imports {
@@ -193,13 +192,12 @@ func importName(iprog *loader.Program, info *loader.PackageInfo, fromPath, fromN
 		r.check(from)
 		if r.hadConflicts {
 			continue // ignore errors; leave the existing name
-			unchangedFiles = append(unchangedFiles, f.Name.Name)
 		}
 		if err := r.update(); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return unchangedFiles, nil
+	return nil
 }
 
 func Main(ctxt *build.Context, offsetFlag, fromFlag, to string) error {
@@ -340,9 +338,8 @@ func Main(ctxt *build.Context, offsetFlag, fromFlag, to string) error {
 // context.  Only packages in pkgs will have their functions bodies typechecked.
 func loadProgram(ctxt *build.Context, pkgs map[string]bool) (*loader.Program, error) {
 	conf := loader.Config{
-		Build:         ctxt,
-		SourceImports: true,
-		ParserMode:    parser.ParseComments,
+		Build:      ctxt,
+		ParserMode: parser.ParseComments,
 
 		// TODO(adonovan): enable this.  Requires making a lot of code more robust!
 		AllowErrors: false,
@@ -366,9 +363,7 @@ func loadProgram(ctxt *build.Context, pkgs map[string]bool) (*loader.Program, er
 	}
 
 	for pkg := range pkgs {
-		if err := conf.ImportWithTests(pkg); err != nil {
-			return nil, err
-		}
+		conf.ImportWithTests(pkg)
 	}
 	return conf.Load()
 }
@@ -463,48 +458,15 @@ func plural(n int) string {
 	return ""
 }
 
-func writeFile(name string, fset *token.FileSet, f *ast.File, mode os.FileMode) error {
-	out, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		// assume error includes the filename
-		return fmt.Errorf("failed to open file: %s", err)
-	}
-
-	// Oddly, os.OpenFile doesn't preserve all the mode bits, hence
-	// this chmod.  (We use 0600 above to avoid a brief
-	// vulnerability if the user has an insecure umask.)
-	os.Chmod(name, mode) // ignore error
-
-	if err := format.Node(out, fset, f); err != nil {
-		out.Close() // ignore error
-		return fmt.Errorf("failed to write file: %s", err)
-	}
-
-	return out.Close()
-}
-
-var rewriteFile = func(fset *token.FileSet, f *ast.File, orig string) (err error) {
-	backup := orig + ".gorename.backup"
+var rewriteFile = func(fset *token.FileSet, f *ast.File, filename string) (err error) {
 	// TODO(adonovan): print packages and filenames in a form useful
 	// to editors (so they can reload files).
 	if Verbose {
-		fmt.Fprintf(os.Stderr, "\t%s\n", orig)
+		fmt.Fprintf(os.Stderr, "\t%s\n", filename)
 	}
-	// save file mode
-	var mode os.FileMode = 0666
-	if fi, err := os.Stat(orig); err == nil {
-		mode = fi.Mode()
+	var buf bytes.Buffer
+	if err := format.Node(&buf, fset, f); err != nil {
+		return fmt.Errorf("failed to pretty-print syntax tree: %v", err)
 	}
-	if err := os.Rename(orig, backup); err != nil {
-		return fmt.Errorf("failed to make backup %s -> %s: %s",
-			orig, filepath.Base(backup), err)
-	}
-	if err := writeFile(orig, fset, f, mode); err != nil {
-		// Restore the file from the backup.
-		os.Remove(orig)         // ignore error
-		os.Rename(backup, orig) // ignore error
-		return err
-	}
-	os.Remove(backup) // ignore error
-	return nil
+	return ioutil.WriteFile(filename, buf.Bytes(), 0644)
 }

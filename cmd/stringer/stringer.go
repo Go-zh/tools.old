@@ -94,7 +94,6 @@ func Usage() {
 	fmt.Fprintf(os.Stderr, "\thttp://godoc.org/github.com/Go-zh/tools/cmd/stringer\n")
 	fmt.Fprintf(os.Stderr, "Flags:\n")
 	flag.PrintDefaults()
-	os.Exit(2)
 }
 
 func main() {

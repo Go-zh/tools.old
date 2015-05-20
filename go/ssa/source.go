@@ -140,11 +140,11 @@ func findNamedFunc(pkg *Package, pos token.Pos) *Function {
 //    - f was not built with debug information; or
 //    - e is a constant expression.  (For efficiency, no debug
 //      information is stored for constants. Use
-//      loader.PackageInfo.ValueOf(e) instead.)
+//      go/types.Info.Types[e].Value instead.)
 //    - e is a reference to nil or a built-in function.
 //    - the value was optimised away.
 //
-// If e is an addressable expression used an an lvalue context,
+// If e is an addressable expression used in an lvalue context,
 // value is the address denoted by e, and isAddr is true.
 //
 // The types of e (or &e, if isAddr) and the result are equal

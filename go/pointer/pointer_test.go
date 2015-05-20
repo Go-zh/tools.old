@@ -153,7 +153,7 @@ func findProbe(prog *ssa.Program, probes map[*ssa.CallCommon]bool, queries map[s
 }
 
 func doOneInput(input, filename string) bool {
-	conf := loader.Config{SourceImports: true}
+	var conf loader.Config
 
 	// Parsing.
 	f, err := conf.ParseFile(filename, input)
@@ -172,7 +172,7 @@ func doOneInput(input, filename string) bool {
 	mainPkgInfo := iprog.Created[0].Pkg
 
 	// SSA creation + building.
-	prog := ssa.Create(iprog, ssa.SanityCheckFunctions)
+	prog := ssautil.CreateProgram(iprog, ssa.SanityCheckFunctions)
 	prog.BuildAll()
 
 	mainpkg := prog.Package(mainPkgInfo)

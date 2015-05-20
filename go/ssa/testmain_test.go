@@ -14,6 +14,7 @@ import (
 
 	"github.com/Go-zh/tools/go/loader"
 	"github.com/Go-zh/tools/go/ssa"
+	"github.com/Go-zh/tools/go/ssa/ssautil"
 )
 
 func create(t *testing.T, content string) []*ssa.Package {
@@ -30,7 +31,7 @@ func create(t *testing.T, content string) []*ssa.Package {
 	}
 
 	// We needn't call Build.
-	return ssa.Create(iprog, ssa.SanityCheckFunctions).AllPackages()
+	return ssautil.CreateProgram(iprog, ssa.SanityCheckFunctions).AllPackages()
 }
 
 func TestFindTests(t *testing.T) {

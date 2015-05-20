@@ -28,6 +28,32 @@ func init() {
 		funcDecl, callExpr)
 }
 
+func initPrintFlags() {
+	if *printfuncs == "" {
+		return
+	}
+	for _, name := range strings.Split(*printfuncs, ",") {
+		if len(name) == 0 {
+			flag.Usage()
+		}
+		skip := 0
+		if colon := strings.LastIndex(name, ":"); colon > 0 {
+			var err error
+			skip, err = strconv.Atoi(name[colon+1:])
+			if err != nil {
+				errorf(`illegal format for "Func:N" argument %q; %s`, name, err)
+			}
+			name = name[:colon]
+		}
+		name = strings.ToLower(name)
+		if name[len(name)-1] == 'f' {
+			printfList[name] = skip
+		} else {
+			printList[name] = skip
+		}
+	}
+}
+
 // printfList records the formatted-print functions. The value is the location
 // of the format parameter. Names are lower-cased so the lookup is
 // case insensitive.
@@ -473,6 +499,10 @@ func (f *File) argCanBeChecked(call *ast.CallExpr, formatArg int, isStar bool, s
 	if argNum < 0 {
 		// Shouldn't happen, so catch it with prejudice.
 		panic("negative arg num")
+	}
+	if argNum == 0 {
+		f.Badf(call.Pos(), `index value [0] for %s("%s"); indexes start at 1`, state.name, state.format)
+		return false
 	}
 	if argNum < len(call.Args)-1 {
 		return true // Always OK.

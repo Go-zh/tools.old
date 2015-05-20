@@ -35,10 +35,7 @@ func TestStdlib(t *testing.T) {
 	// Load, parse and type-check the program.
 	ctxt := build.Default // copy
 	ctxt.GOPATH = ""      // disable GOPATH
-	conf := loader.Config{
-		SourceImports: true,
-		Build:         &ctxt,
-	}
+	conf := loader.Config{Build: &ctxt}
 	if _, err := conf.FromArgs(buildutil.AllPackages(conf.Build), true); err != nil {
 		t.Errorf("FromArgs failed: %v", err)
 		return
@@ -50,7 +47,7 @@ func TestStdlib(t *testing.T) {
 	}
 
 	// Create SSA packages.
-	prog := ssa.Create(iprog, 0)
+	prog := ssautil.CreateProgram(iprog, 0)
 	prog.BuildAll()
 
 	numPkgs := len(prog.AllPackages())
