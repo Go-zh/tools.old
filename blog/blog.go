@@ -138,6 +138,17 @@ func sectioned(d *present.Doc) bool {
 func authors(authors []present.Author) string {
 	var b bytes.Buffer
 	last := len(authors) - 1
+	// It's easy for the translated article to have an empty at the
+	// end due to the way we do translation.
+	//	Author 1
+	//	<blank line>
+	//	# *Introduction // This line is treated as a 2nd empty author
+	//	<blank line>
+	//	* 引言
+	for last > 0 && authorName(authors[last]) == "" {
+		authors = authors[:last]
+		last--
+	}
 	for i, a := range authors {
 		if i > 0 {
 			if i == last {
