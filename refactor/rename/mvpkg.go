@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // licence that can be found in the LICENSE file.
 
-// This file contains the implementation of the 'gomovepkg' command
-// whose main function is in golang.org/x/tools/cmd/gomovepkg.
+// This file contains the implementation of the 'gomvpkg' command
+// whose main function is in golang.org/x/tools/cmd/gomvpkg.
 
 package rename
 
@@ -61,11 +61,12 @@ func Move(ctxt *build.Context, from, to, moveTmpl string) error {
 	// Build the import graph and figure out which packages to update.
 	fwd, rev, errors := importgraph.Build(ctxt)
 	if len(errors) > 0 {
+		// With a large GOPATH tree, errors are inevitable.
+		// Report them but proceed.
 		fmt.Fprintf(os.Stderr, "While scanning Go workspace:\n")
 		for path, err := range errors {
 			fmt.Fprintf(os.Stderr, "Package %q: %s.\n", path, err)
 		}
-		return fmt.Errorf("failed to construct import graph")
 	}
 
 	// Determine the affected packages---the set of packages whose import
@@ -240,6 +241,30 @@ func (m *mover) move() error {
 		f.Name.Name = newName // change package decl
 		filesToUpdate[f] = true
 	}
+
+	// Look through the external test packages (m.iprog.Created contains the external test packages).
+	for _, info := range m.iprog.Created {
+		// Change the "package" declaration of the external test package.
+		if info.Pkg.Path() == m.from+"_test" {
+			for _, f := range info.Files {
+				f.Name.Name = newName + "_test" // change package decl
+				filesToUpdate[f] = true
+			}
+		}
+
+		// Mark all the loaded external test packages, which import the "from" package,
+		// as affected packages and update the imports.
+		for _, imp := range info.Pkg.Imports() {
+			if imp.Path() == m.from {
+				m.affectedPackages[info.Pkg.Path()] = true
+				m.iprog.Imported[info.Pkg.Path()] = info
+				if err := importName(m.iprog, info, m.from, path.Base(m.from), newName); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	// Update imports of that package to use the new import name.
 	// None of the subpackages will change their name---only the from package
 	// itself will.

@@ -2,11 +2,16 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// No testdata on Android.
+
+// +build !android
+
 package loader_test
 
 import (
 	"fmt"
 	"go/build"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -221,7 +226,7 @@ func TestLoad_ParseError_AllowErrors(t *testing.T) {
 	if len(badpkg.Files) != 1 {
 		t.Errorf("badpkg has %d files, want 1", len(badpkg.Files))
 	}
-	wantErr := "testdata/badpkgdecl.go:1:34: expected 'package', found 'EOF'"
+	wantErr := filepath.Join("testdata", "badpkgdecl.go") + ":1:34: expected 'package', found 'EOF'"
 	if !hasError(badpkg.Errors, wantErr) {
 		t.Errorf("badpkg.Errors = %v, want %s", badpkg.Errors, wantErr)
 	}
