@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// No testdata on Android.
+
+// +build !android
+
 package rta_test
 
 import (
@@ -126,7 +130,7 @@ func printResult(res *rta.Result, from *types.Package) string {
 	var rtypes []string
 	res.RuntimeTypes.Iterate(func(key types.Type, value interface{}) {
 		if value == false { // accessible to reflection
-			rtypes = append(rtypes, types.TypeString(from, key))
+			rtypes = append(rtypes, types.TypeString(key, types.RelativeTo(from)))
 		}
 	})
 	writeSorted(rtypes)

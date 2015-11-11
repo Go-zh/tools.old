@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// TODO: syscall.SIGABRT is not defined for Plan 9 (issue #11975)
+
+// +build !plan9
+
 // The stress utility is intended for catching of episodic failures.
 // It runs a given process in parallel in a loop and collects any failures.
 // Usage:
@@ -29,6 +33,7 @@ var (
 	flagTimeout = flag.Duration("timeout", 10*time.Minute, "timeout each process after `duration`")
 	flagKill    = flag.Bool("kill", true, "kill timed out processes if true, otherwise just print pid (to attach with gdb)")
 	flagFailure = flag.String("failure", "", "fail only if output matches `regexp`")
+	flagIgnore  = flag.String("ignore", "", "ignore failure if output matches `regexp`")
 )
 
 func main() {
@@ -37,11 +42,18 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	var failureRe *regexp.Regexp
+	var failureRe, ignoreRe *regexp.Regexp
 	if *flagFailure != "" {
 		var err error
 		if failureRe, err = regexp.Compile(*flagFailure); err != nil {
 			fmt.Println("bad failure regexp:", err)
+			os.Exit(1)
+		}
+	}
+	if *flagIgnore != "" {
+		var err error
+		if ignoreRe, err = regexp.Compile(*flagIgnore); err != nil {
+			fmt.Println("bad ignore regexp:", err)
 			os.Exit(1)
 		}
 	}
@@ -73,7 +85,7 @@ func main() {
 				}
 				out, err := cmd.CombinedOutput()
 				close(done)
-				if err != nil && (failureRe == nil || failureRe.Match(out)) {
+				if err != nil && (failureRe == nil || failureRe.Match(out)) && (ignoreRe == nil || !ignoreRe.Match(out)) {
 					out = append(out, fmt.Sprintf("\n\nERROR: %v\n", err)...)
 				} else {
 					out = []byte{}
@@ -82,7 +94,7 @@ func main() {
 			}
 		}()
 	}
-	runs := 0
+	runs, fails := 0, 0
 	ticker := time.NewTicker(5 * time.Second).C
 	for {
 		select {
@@ -91,6 +103,7 @@ func main() {
 			if len(out) == 0 {
 				continue
 			}
+			fails++
 			f, err := ioutil.TempFile("", "go-stress")
 			if err != nil {
 				fmt.Printf("failed to create temp file: %v\n", err)
@@ -103,7 +116,7 @@ func main() {
 			}
 			fmt.Printf("\n%s\n%s\n", f.Name(), out)
 		case <-ticker:
-			fmt.Printf("%v runs so far\n", runs)
+			fmt.Printf("%v runs so far, %v failures\n", runs, fails)
 		}
 	}
 }

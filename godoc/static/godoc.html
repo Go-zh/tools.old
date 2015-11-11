@@ -2,6 +2,8 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#375EAB">
 {{with .Tabtitle}}
 <!--
   <title>{{html .}} - The Go Programming Language</title>
@@ -27,7 +29,9 @@
 </div><!-- #lowframe -->
 
 <div id="topbar"{{if .Title}} class="wide"{{end}}><div class="container">
-
+<div class="top-heading" id="heading-wide"><a href="/">The Go Programming Language</a></div>
+<div class="top-heading" id="heading-narrow"><a href="/">Go</a></div>
+<a href="#" id="menu-button"><span id="menu-button-arrow">&#9661;</span></a>
 <form method="GET" action="/search">
 <div id="menu">
 <!--
@@ -53,10 +57,6 @@
 -->
 <input type="text" id="search" name="q" class="inactive" value="搜索" placeholder="搜索">
 </div>
-<!--
-<div id="heading"><a href="/">The Go Programming Language</a></div>
--->
-<div id="heading"><a href="/">Go 编程语言</a></div>
 </form>
 
 </div></div>
