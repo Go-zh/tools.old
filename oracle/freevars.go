@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package oracle
 
 import (
@@ -9,10 +11,10 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
+	"go/types"
 	"sort"
 
 	"github.com/Go-zh/tools/go/loader"
-	"github.com/Go-zh/tools/go/types"
 	"github.com/Go-zh/tools/oracle/serial"
 )
 
@@ -33,7 +35,7 @@ func freevars(q *Query) error {
 	lconf := loader.Config{Build: q.Build}
 	allowErrors(&lconf)
 
-	if err := importQueryPackage(q.Pos, &lconf); err != nil {
+	if _, err := importQueryPackage(q.Pos, &lconf); err != nil {
 		return err
 	}
 

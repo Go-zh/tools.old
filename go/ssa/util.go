@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package ssa
 
 // This file defines a number of miscellaneous utility functions.
@@ -10,11 +12,11 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 	"io"
 	"os"
 
 	"github.com/Go-zh/tools/go/ast/astutil"
-	"github.com/Go-zh/tools/go/types"
 )
 
 //// AST utilities

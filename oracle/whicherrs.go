@@ -2,19 +2,21 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package oracle
 
 import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 	"sort"
 
 	"github.com/Go-zh/tools/go/ast/astutil"
 	"github.com/Go-zh/tools/go/loader"
 	"github.com/Go-zh/tools/go/ssa"
 	"github.com/Go-zh/tools/go/ssa/ssautil"
-	"github.com/Go-zh/tools/go/types"
 	"github.com/Go-zh/tools/oracle/serial"
 )
 
@@ -91,7 +93,7 @@ func whicherrs(q *Query) error {
 	}
 
 	// Defer SSA construction till after errors are reported.
-	prog.BuildAll()
+	prog.Build()
 
 	globals := findVisibleErrs(prog, qpos)
 	constants := findVisibleConsts(prog, qpos)

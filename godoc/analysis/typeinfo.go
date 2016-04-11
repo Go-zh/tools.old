@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package analysis
 
 // This file computes the markup for information from go/types:
@@ -20,19 +22,19 @@ package analysis
 
 import (
 	"fmt"
+	"go/types"
 	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/Go-zh/tools/go/loader"
-	"github.com/Go-zh/tools/go/types"
 	"github.com/Go-zh/tools/go/types/typeutil"
 )
 
 // TODO(adonovan): audit to make sure it's safe on ill-typed packages.
 
 // TODO(adonovan): use same Sizes as loader.Config.
-var sizes = types.StdSizes{8, 8}
+var sizes = types.StdSizes{WordSize: 8, MaxAlign: 8}
 
 func (a *analysis) doTypeInfo(info *loader.PackageInfo, implements map[*types.Named]implementsFacts) {
 	// We must not assume the corresponding SSA packages were

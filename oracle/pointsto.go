@@ -2,12 +2,15 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package oracle
 
 import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 	"sort"
 
 	"github.com/Go-zh/tools/go/ast/astutil"
@@ -15,7 +18,6 @@ import (
 	"github.com/Go-zh/tools/go/pointer"
 	"github.com/Go-zh/tools/go/ssa"
 	"github.com/Go-zh/tools/go/ssa/ssautil"
-	"github.com/Go-zh/tools/go/types"
 	"github.com/Go-zh/tools/oracle/serial"
 )
 
@@ -95,7 +97,7 @@ func pointsto(q *Query) error {
 	}
 
 	// Defer SSA construction till after errors are reported.
-	prog.BuildAll()
+	prog.Build()
 
 	// Run the pointer analysis.
 	ptrs, err := runPTA(ptaConfig, value, isAddr)

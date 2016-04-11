@@ -2,19 +2,21 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package interp
 
 import (
 	"bytes"
 	"fmt"
+	exact "go/constant"
 	"go/token"
+	"go/types"
 	"strings"
 	"sync"
 	"unsafe"
 
-	"github.com/Go-zh/tools/go/exact"
 	"github.com/Go-zh/tools/go/ssa"
-	"github.com/Go-zh/tools/go/types"
 )
 
 // If the target program panics, the interpreter panics with this type.

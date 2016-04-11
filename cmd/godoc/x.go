@@ -24,6 +24,7 @@ type xRepo struct {
 var xMap = map[string]xRepo{
 	"codereview": {"https://code.google.com/p/go.codereview", "hg"},
 
+	"arch":       {"https://go.googlesource.com/arch", "git"},
 	"benchmarks": {"https://go.googlesource.com/benchmarks", "git"},
 	"blog":       {"https://go.googlesource.com/blog", "git"},
 	"build":      {"https://go.googlesource.com/build", "git"},
@@ -36,9 +37,12 @@ var xMap = map[string]xRepo{
 	"oauth2":     {"https://go.googlesource.com/oauth2", "git"},
 	"playground": {"https://go.googlesource.com/playground", "git"},
 	"review":     {"https://go.googlesource.com/review", "git"},
+	"sync":       {"https://go.googlesource.com/sync", "git"},
 	"sys":        {"https://go.googlesource.com/sys", "git"},
 	"talks":      {"https://go.googlesource.com/talks", "git"},
+	"term":       {"https://go.googlesource.com/term", "git"},
 	"text":       {"https://go.googlesource.com/text", "git"},
+	"time":       {"https://go.googlesource.com/time", "git"},
 	"tools":      {"https://go.googlesource.com/tools", "git"},
 	"tour":       {"https://go.googlesource.com/tour", "git"},
 }

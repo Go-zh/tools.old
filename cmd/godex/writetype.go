@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 // This file implements writing of types. The functionality is lifted
 // directly from go/types, but now contains various modifications for
 // nicer output.
@@ -12,7 +14,7 @@
 
 package main
 
-import "github.com/Go-zh/tools/go/types"
+import "go/types"
 
 func (p *printer) writeType(this *types.Package, typ types.Type) {
 	p.writeTypeInternal(this, typ, make([]types.Type, 8))

@@ -135,7 +135,7 @@ if (objCtr.defineProperty) {
 /* Slide movement */
 
 function hideHelpText() {
-  $('#help').hide();
+  document.getElementById('help').style.display = 'none';
 };
 
 function getSlideEl(no) {
@@ -466,9 +466,6 @@ function addGeneralStyle() {
   el.name = 'apple-mobile-web-app-capable';
   el.content = 'yes';
   document.querySelector('head').appendChild(el);
-};
-
-function showHelpText() {
 };
 
 function handleDomLoaded() {

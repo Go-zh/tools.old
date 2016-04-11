@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 // No testdata on Android.
 
 // +build !android
@@ -17,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"go/token"
+	"go/types"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -29,7 +32,6 @@ import (
 	"github.com/Go-zh/tools/go/pointer"
 	"github.com/Go-zh/tools/go/ssa"
 	"github.com/Go-zh/tools/go/ssa/ssautil"
-	"github.com/Go-zh/tools/go/types"
 	"github.com/Go-zh/tools/go/types/typeutil"
 )
 
@@ -176,7 +178,7 @@ func doOneInput(input, filename string) bool {
 
 	// SSA creation + building.
 	prog := ssautil.CreateProgram(iprog, ssa.SanityCheckFunctions)
-	prog.BuildAll()
+	prog.Build()
 
 	mainpkg := prog.Package(mainPkgInfo)
 	ptrmain := mainpkg // main package for the pointer analysis
@@ -243,7 +245,7 @@ func doOneInput(input, filename string) bool {
 				for _, typstr := range split(rest, "|") {
 					var t types.Type = types.Typ[types.Invalid] // means "..."
 					if typstr != "..." {
-						tv, err := types.Eval(prog.Fset, mainpkg.Object, f.Pos(), typstr)
+						tv, err := types.Eval(prog.Fset, mainpkg.Pkg, f.Pos(), typstr)
 						if err != nil {
 							ok = false
 							// Don't print err since its location is bad.
@@ -520,6 +522,9 @@ func checkWarningExpectation(prog *ssa.Program, e *expectation, warnings []point
 }
 
 func TestInput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode; this test requires tons of memory; golang.org/issue/14113")
+	}
 	ok := true
 
 	wd, err := os.Getwd()

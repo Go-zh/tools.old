@@ -372,6 +372,12 @@ pre {
   color: black;
 }
 
+pre.numbers span:before {
+  content: attr(num);
+  margin-right: 1em;
+  display: inline-block;
+}
+
 code {
   font-size: 95%;
   font-family: 'Droid Sans Mono', 'Courier New', monospace;
@@ -379,9 +385,24 @@ code {
   color: black;
 }
 
-article > .image {
+article > .image,
+article > .video {
   text-align: center;
   margin-top: 40px;
+}
+
+article > .background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+}
+
+article > .background > img {
+  max-height: 100%;
+  max-width: 100%;
 }
 
 table {

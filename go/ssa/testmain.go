@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package ssa
 
 // CreateTestMainPackage synthesizes a main package that runs all the
@@ -10,13 +12,12 @@ package ssa
 
 import (
 	"go/ast"
+	exact "go/constant"
 	"go/token"
+	"go/types"
 	"os"
 	"sort"
 	"strings"
-
-	"github.com/Go-zh/tools/go/exact"
-	"github.com/Go-zh/tools/go/types"
 )
 
 // FindTests returns the list of packages that define at least one Test,
@@ -102,7 +103,7 @@ func (prog *Program) CreateTestMainPackage(pkgs ...*Package) *Package {
 		Prog:    prog,
 		Members: make(map[string]Member),
 		values:  make(map[types.Object]Value),
-		Object:  types.NewPackage("test$main", "main"),
+		Pkg:     types.NewPackage("test$main", "main"),
 	}
 
 	// Build package's init function.
@@ -127,23 +128,23 @@ func (prog *Program) CreateTestMainPackage(pkgs ...*Package) *Package {
 		v.setType(types.NewTuple())
 		init.emit(&v)
 
-		pkgpaths = append(pkgpaths, pkg.Object.Path())
+		pkgpaths = append(pkgpaths, pkg.Pkg.Path())
 	}
 	sort.Strings(pkgpaths)
 	init.emit(new(Return))
 	init.finishBody()
 	testmain.init = init
-	testmain.Object.MarkComplete()
+	testmain.Pkg.MarkComplete()
 	testmain.Members[init.name] = init
 
 	// For debugging convenience, define an unexported const
 	// that enumerates the packages.
-	packagesConst := types.NewConst(token.NoPos, testmain.Object, "packages", tString,
+	packagesConst := types.NewConst(token.NoPos, testmain.Pkg, "packages", tString,
 		exact.MakeString(strings.Join(pkgpaths, " ")))
 	memberFromObject(testmain, packagesConst, nil)
 
 	// Create main *types.Func and *ssa.Function
-	mainFunc := types.NewFunc(token.NoPos, testmain.Object, "main", new(types.Signature))
+	mainFunc := types.NewFunc(token.NoPos, testmain.Pkg, "main", new(types.Signature))
 	memberFromObject(testmain, mainFunc, nil)
 	main := testmain.Func("main")
 	main.Synthetic = "test main function"
@@ -222,7 +223,7 @@ func (prog *Program) CreateTestMainPackage(pkgs ...*Package) *Package {
 		sanityCheckPackage(testmain)
 	}
 
-	prog.packages[testmain.Object] = testmain
+	prog.packages[testmain.Pkg] = testmain
 
 	return testmain
 }
@@ -240,6 +241,12 @@ func testMainSlice(fn *Function, testfuncs []*Function, slice types.Type) Value 
 	tPtrString := types.NewPointer(tString)
 	tPtrElem := types.NewPointer(tElem)
 	tPtrFunc := types.NewPointer(funcField(slice))
+
+	// TODO(adonovan): fix: populate the
+	// testing.InternalExample.Output field correctly so that tests
+	// work correctly under the interpreter.  This requires that we
+	// do this step using ASTs, not *ssa.Functions---quite a
+	// redesign.  See also the fake runExample in go/ssa/interp.
 
 	// Emit: array = new [n]testing.InternalTest
 	tArray := types.NewArray(tElem, int64(len(testfuncs)))

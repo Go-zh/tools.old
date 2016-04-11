@@ -20,12 +20,14 @@ package main // import "github.com/Go-zh/tools/cmd/callgraph"
 //     callee file/line/col
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
 	"go/build"
 	"go/token"
 	"io"
+	"log"
 	"os"
 	"runtime"
 	"text/template"
@@ -41,15 +43,21 @@ import (
 	"github.com/Go-zh/tools/go/ssa/ssautil"
 )
 
-var algoFlag = flag.String("algo", "rta",
-	`Call graph construction algorithm (static, cha, rta, pta)`)
+// flags
+var (
+	algoFlag = flag.String("algo", "rta",
+		`Call graph construction algorithm (static, cha, rta, pta)`)
 
-var testFlag = flag.Bool("test", false,
-	"Loads test code (*_test.go) for imported packages")
+	testFlag = flag.Bool("test", false,
+		"Loads test code (*_test.go) for imported packages")
 
-var formatFlag = flag.String("format",
-	"{{.Caller}}\t--{{.Dynamic}}-{{.Line}}:{{.Column}}-->\t{{.Callee}}",
-	"A template expression specifying how to format an edge")
+	formatFlag = flag.String("format",
+		"{{.Caller}}\t--{{.Dynamic}}-{{.Line}}:{{.Column}}-->\t{{.Callee}}",
+		"A template expression specifying how to format an edge")
+
+	ptalogFlag = flag.String("ptalog", "",
+		"Location of the points-to analysis log file, or empty to disable logging.")
+)
 
 func init() {
 	flag.Var((*buildutil.TagsFlag)(&build.Default.BuildTags), "tags", buildutil.TagsFlagDoc)
@@ -180,7 +188,7 @@ func doCallgraph(ctxt *build.Context, algo, format string, tests bool, args []st
 
 	// Create and build SSA-form program representation.
 	prog := ssautil.CreateProgram(iprog, 0)
-	prog.BuildAll()
+	prog.Build()
 
 	// -- call graph construction ------------------------------------------
 
@@ -194,6 +202,25 @@ func doCallgraph(ctxt *build.Context, algo, format string, tests bool, args []st
 		cg = cha.CallGraph(prog)
 
 	case "pta":
+		// Set up points-to analysis log file.
+		var ptalog io.Writer
+		if *ptalogFlag != "" {
+			if f, err := os.Create(*ptalogFlag); err != nil {
+				log.Fatalf("Failed to create PTA log file: %s", err)
+			} else {
+				buf := bufio.NewWriter(f)
+				ptalog = buf
+				defer func() {
+					if err := buf.Flush(); err != nil {
+						log.Printf("flush: %s", err)
+					}
+					if err := f.Close(); err != nil {
+						log.Printf("close: %s", err)
+					}
+				}()
+			}
+		}
+
 		main, err := mainPackage(prog, tests)
 		if err != nil {
 			return err
@@ -201,6 +228,7 @@ func doCallgraph(ctxt *build.Context, algo, format string, tests bool, args []st
 		config := &pointer.Config{
 			Mains:          []*ssa.Package{main},
 			BuildCallGraph: true,
+			Log:            ptalog,
 		}
 		ptares, err := pointer.Analyze(config)
 		if err != nil {
@@ -295,7 +323,7 @@ func mainPackage(prog *ssa.Program, tests bool) (*ssa.Package, error) {
 
 	// Otherwise, use the first package named main.
 	for _, pkg := range pkgs {
-		if pkg.Object.Name() == "main" {
+		if pkg.Pkg.Name() == "main" {
 			if pkg.Func("main") == nil {
 				return nil, fmt.Errorf("no func main() in main package")
 			}

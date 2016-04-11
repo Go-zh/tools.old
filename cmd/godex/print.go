@@ -2,17 +2,18 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package main
 
 import (
 	"bytes"
 	"fmt"
+	exact "go/constant"
 	"go/token"
+	"go/types"
 	"io"
 	"math/big"
-
-	"github.com/Go-zh/tools/go/exact"
-	"github.com/Go-zh/tools/go/types"
 )
 
 // TODO(gri) use tabwriter for alignment?

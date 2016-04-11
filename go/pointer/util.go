@@ -2,11 +2,14 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package pointer
 
 import (
 	"bytes"
 	"fmt"
+	"go/types"
 	"log"
 	"os"
 	"os/exec"
@@ -14,7 +17,6 @@ import (
 	"time"
 
 	"github.com/Go-zh/tools/container/intsets"
-	"github.com/Go-zh/tools/go/types"
 )
 
 // CanPoint reports whether the type T is pointerlike,

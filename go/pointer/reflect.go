@@ -1,3 +1,9 @@
+// Copyright 2013 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// +build go1.5
+
 package pointer
 
 // This file implements the generation and resolution rules for
@@ -26,11 +32,11 @@ package pointer
 
 import (
 	"fmt"
+	exact "go/constant"
+	"go/types"
 	"reflect"
 
-	"github.com/Go-zh/tools/go/exact"
 	"github.com/Go-zh/tools/go/ssa"
-	"github.com/Go-zh/tools/go/types"
 )
 
 func init() {
@@ -1879,7 +1885,7 @@ func (c *rtypeMethodByNameConstraint) solve(a *analysis, delta *nodeset) {
 				if isIface {
 					sig = sel.Type().(*types.Signature)
 				} else {
-					fn = a.prog.Method(sel)
+					fn = a.prog.MethodValue(sel)
 					// move receiver to params[0]
 					sig = changeRecv(fn.Signature)
 				}

@@ -1,5 +1,4 @@
-// 请勿编辑 ** 本文件通过 "go generate" 生成 ** 请勿编辑 //
-
+// 本文件通过 "makestatic" 生成，请勿编辑！ //
 package static
 
 var Files = map[string]string{
@@ -476,17 +475,19 @@ var Files = map[string]string{
 		{{$output := .Output}}
 		{{with .Play}}
 			<div class="play">
-				<div class="input"><textarea class="code">{{html .}}</textarea></div>
+				<div class="input"><textarea class="code" spellcheck="false">{{html .}}</textarea></div>
 				<div class="output"><pre>{{html $output}}</pre></div>
 				<div class="buttons">
 <!--
 					<a class="run" title="Run this code [shift-enter]">Run</a>
 					<a class="fmt" title="Format this code">Format</a>
+					{{if $.Share}}
 					<a class="share" title="Share this code">Share</a>
 -->
 					<a class="run" title="运行此代码[Shift+Enter]">运行</a>
 					<a class="fmt" title="格式化此代码">格式化</a>
 					<a class="share" title="分享此代码">分享</a>
+					{{end}}
 				</div>
 			</div>
 		{{else}}
@@ -572,7 +573,7 @@ var Files = map[string]string{
 
 {{if .Playground}}
 <div id="playground" class="play">
-	<div class="input"><textarea class="code">package main
+	<div class="input"><textarea class="code" spellcheck="false">package main
 
 import "fmt"
 
@@ -584,11 +585,13 @@ func main() {
 <!--
 		<a class="run" title="Run this code [shift-enter]">Run</a>
 		<a class="fmt" title="Format this code">Format</a>
+		{{if $.Share}}
 		<a class="share" title="Share this code">Share</a>
 -->
 		<a class="run" title="运行此代码[Shift-Enter]">运行</a>
 		<a class="fmt" title="格式化此代码">格式化</a>
 		<a class="share" title="分享此代码">分享</a>
+		{{end}}
 	</div>
 </div>
 {{end}}
@@ -922,6 +925,8 @@ function personalizeInstallInstructions() {
   }
   if (os != 'windows') {
     $('#windowsInstructions').hide();
+    $('.testUnix').show();
+    $('.testWindows').hide();
   } else {
     if (ext != 'msi') {
       $('#windowsInstallerInstructions').hide();
@@ -929,6 +934,8 @@ function personalizeInstallInstructions() {
     if (ext != 'zip') {
       $('#windowsZipInstructions').hide();
     }
+    $('.testUnix').hide();
+    $('.testWindows').show();
   }
 
   var download = "https://storage.googleapis.com/golang/" + filename;
@@ -3061,7 +3068,7 @@ a:hover,
 .exampleHeading .text:hover {
 	text-decoration: underline;
 }
-p {
+p, li {
 	max-width: 800px;
 	word-wrap: break-word;
 }
@@ -3123,10 +3130,7 @@ dl {
 	margin: 20px;
 }
 dd {
-	margin: 0;
-}
-dd.indent {
-	margin: 0 20px;
+	margin: 0 0 0 20px;
 }
 dl,
 dd {

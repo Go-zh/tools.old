@@ -2,19 +2,21 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package oracle
 
 import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 	"sort"
 
 	"github.com/Go-zh/tools/go/loader"
 	"github.com/Go-zh/tools/go/pointer"
 	"github.com/Go-zh/tools/go/ssa"
 	"github.com/Go-zh/tools/go/ssa/ssautil"
-	"github.com/Go-zh/tools/go/types"
 	"github.com/Go-zh/tools/oracle/serial"
 )
 
@@ -90,12 +92,17 @@ func callees(q *Query) error {
 				return nil
 			}
 		} else if sel.Kind() == types.MethodVal {
-			recvtype := sel.Recv()
+			// Inspect the receiver type of the selected method.
+			// If it is concrete, the call is statically dispatched.
+			// (Due to implicit field selections, it is not enough to look
+			// at sel.Recv(), the type of the actual receiver expression.)
+			method := sel.Obj().(*types.Func)
+			recvtype := method.Type().(*types.Signature).Recv().Type()
 			if !types.IsInterface(recvtype) {
 				// static method call
 				q.result = &calleesTypesResult{
 					site:   e,
-					callee: sel.Obj().(*types.Func),
+					callee: method,
 				}
 				return nil
 			}
@@ -115,7 +122,7 @@ func callees(q *Query) error {
 	}
 
 	// Defer SSA construction till after errors are reported.
-	prog.BuildAll()
+	prog.Build()
 
 	// Ascertain calling function and call site.
 	callerFn := ssa.EnclosingFunction(pkg, qpos.path)

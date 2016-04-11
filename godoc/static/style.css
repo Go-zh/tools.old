@@ -42,7 +42,7 @@ a:hover,
 .exampleHeading .text:hover {
 	text-decoration: underline;
 }
-p {
+p, li {
 	max-width: 800px;
 	word-wrap: break-word;
 }
@@ -104,10 +104,7 @@ dl {
 	margin: 20px;
 }
 dd {
-	margin: 0;
-}
-dd.indent {
-	margin: 0 20px;
+	margin: 0 0 0 20px;
 }
 dl,
 dd {

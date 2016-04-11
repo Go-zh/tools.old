@@ -1,17 +1,22 @@
+// Copyright 2014 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// +build go1.5
+
 package eg
 
 import (
 	"fmt"
 	"go/ast"
+	exact "go/constant"
 	"go/token"
+	"go/types"
 	"log"
 	"os"
 	"reflect"
 
 	"github.com/Go-zh/tools/go/ast/astutil"
-	"github.com/Go-zh/tools/go/exact"
-	"github.com/Go-zh/tools/go/loader"
-	"github.com/Go-zh/tools/go/types"
 )
 
 // matchExpr reports whether pattern x matches y.
@@ -42,8 +47,8 @@ func (tr *Transformer) matchExpr(x, y ast.Expr) bool {
 
 	// Object identifiers (including pkg-qualified ones)
 	// are handled semantically, not syntactically.
-	xobj := isRef(x, &tr.info)
-	yobj := isRef(y, &tr.info)
+	xobj := isRef(x, tr.info)
+	yobj := isRef(y, tr.info)
 	if xobj != nil {
 		return xobj == yobj
 	}
@@ -64,8 +69,8 @@ func (tr *Transformer) matchExpr(x, y ast.Expr) bool {
 
 	case *ast.BasicLit:
 		y := y.(*ast.BasicLit)
-		xval := exact.MakeFromLiteral(x.Value, x.Kind)
-		yval := exact.MakeFromLiteral(y.Value, y.Kind)
+		xval := exact.MakeFromLiteral(x.Value, x.Kind, 0)
+		yval := exact.MakeFromLiteral(y.Value, y.Kind, 0)
 		return exact.Compare(xval, token.EQL, yval)
 
 	case *ast.FuncLit:
@@ -231,7 +236,7 @@ func unparen(e ast.Expr) ast.Expr { return astutil.Unparen(e) }
 
 // isRef returns the object referred to by this (possibly qualified)
 // identifier, or nil if the node is not a referring identifier.
-func isRef(n ast.Node, info *loader.PackageInfo) types.Object {
+func isRef(n ast.Node, info *types.Info) types.Object {
 	switch n := n.(type) {
 	case *ast.Ident:
 		return info.Uses[n]

@@ -63,7 +63,7 @@
 
 {{if .Playground}}
 <div id="playground" class="play">
-	<div class="input"><textarea class="code">package main
+	<div class="input"><textarea class="code" spellcheck="false">package main
 
 import "fmt"
 
@@ -75,11 +75,13 @@ func main() {
 <!--
 		<a class="run" title="Run this code [shift-enter]">Run</a>
 		<a class="fmt" title="Format this code">Format</a>
+		{{if $.Share}}
 		<a class="share" title="Share this code">Share</a>
 -->
 		<a class="run" title="运行此代码[Shift-Enter]">运行</a>
 		<a class="fmt" title="格式化此代码">格式化</a>
 		<a class="share" title="分享此代码">分享</a>
+		{{end}}
 	</div>
 </div>
 {{end}}

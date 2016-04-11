@@ -1,3 +1,9 @@
+// Copyright 2013 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// +build go1.5
+
 package pointer
 
 // This file implements Hash-Value Numbering (HVN), a pre-solver
@@ -159,11 +165,11 @@ package pointer
 
 import (
 	"fmt"
+	"go/types"
 	"io"
 	"reflect"
 
 	"github.com/Go-zh/tools/container/intsets"
-	"github.com/Go-zh/tools/go/types"
 )
 
 // A peLabel is a pointer-equivalence label: two nodes with the same

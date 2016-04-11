@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"go/ast"
 	"go/build"
+	"go/format"
+	"go/token"
 	"log"
 	"os"
 	"os/exec"
@@ -238,6 +240,22 @@ func (m *mover) move() error {
 	}
 	newName := filepath.Base(m.to)
 	for _, f := range pkg.Files {
+		// Update all import comments.
+		for _, cg := range f.Comments {
+			c := cg.List[0]
+			if c.Slash >= f.Name.End() &&
+				sameLine(m.iprog.Fset, c.Slash, f.Name.End()) &&
+				(f.Decls == nil || c.Slash < f.Decls[0].Pos()) {
+				if strings.HasPrefix(c.Text, `// import "`) {
+					c.Text = `// import "` + m.to + `"`
+					break
+				}
+				if strings.HasPrefix(c.Text, `/* import "`) {
+					c.Text = `/* import "` + m.to + `" */`
+					break
+				}
+			}
+		}
 		f.Name.Name = newName // change package decl
 		filesToUpdate[f] = true
 	}
@@ -304,8 +322,13 @@ func (m *mover) move() error {
 	}
 
 	for f := range filesToUpdate {
+		var buf bytes.Buffer
+		if err := format.Node(&buf, m.iprog.Fset, f); err != nil {
+			log.Printf("failed to pretty-print syntax tree: %v", err)
+			continue
+		}
 		tokenFile := m.iprog.Fset.File(f.Pos())
-		rewriteFile(m.iprog.Fset, f, tokenFile.Name())
+		writeFile(tokenFile.Name(), buf.Bytes())
 	}
 
 	// Move the directories.
@@ -336,6 +359,11 @@ func (m *mover) move() error {
 	}
 
 	return moveDirectory(m.fromDir, m.toDir)
+}
+
+// sameLine reports whether two positions in the same file are on the same line.
+func sameLine(fset *token.FileSet, x, y token.Pos) bool {
+	return fset.Position(x).Line == fset.Position(y).Line
 }
 
 var moveDirectory = func(from, to string) error {

@@ -2,10 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package rename
 
 import (
 	"go/ast"
+	"go/types"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -14,7 +17,6 @@ import (
 	"unicode"
 
 	"github.com/Go-zh/tools/go/ast/astutil"
-	"github.com/Go-zh/tools/go/types"
 )
 
 func objectKind(obj types.Object) string {

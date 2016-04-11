@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package ssa
 
 // This package defines a high-level intermediate representation for
@@ -10,11 +12,11 @@ package ssa
 import (
 	"fmt"
 	"go/ast"
+	exact "go/constant"
 	"go/token"
+	"go/types"
 	"sync"
 
-	"github.com/Go-zh/tools/go/exact"
-	"github.com/Go-zh/tools/go/types"
 	"github.com/Go-zh/tools/go/types/typeutil"
 )
 
@@ -45,7 +47,7 @@ type Program struct {
 //
 type Package struct {
 	Prog    *Program               // the owning program
-	Object  *types.Package         // the type checker's package object for this package
+	Pkg     *types.Package         // the corresponding go/types.Package
 	Members map[string]Member      // all package members keyed by name (incl. init and init#%d)
 	values  map[types.Object]Value // package members (incl. types and methods), keyed by object
 	init    *Function              // Func("init"); the package's init function
@@ -53,10 +55,10 @@ type Package struct {
 
 	// The following fields are set transiently, then cleared
 	// after building.
-	started int32       // atomically tested and set at start of build phase
-	ninit   int32       // number of init functions
-	info    *types.Info // package type information
-	files   []*ast.File // package ASTs
+	buildOnce sync.Once   // ensures package building occurs once
+	ninit     int32       // number of init functions
+	info      *types.Info // package type information
+	files     []*ast.File // package ASTs
 }
 
 // A Member is a member of a Go package, implemented by *NamedConst,

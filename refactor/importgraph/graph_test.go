@@ -10,7 +10,6 @@ package importgraph_test
 
 import (
 	"go/build"
-	"runtime"
 	"sort"
 	"testing"
 
@@ -22,15 +21,12 @@ import (
 const this = "github.com/Go-zh/tools/refactor/importgraph"
 
 func TestBuild(t *testing.T) {
-	saved := runtime.GOMAXPROCS(8) // Build is highly parallel
-	defer runtime.GOMAXPROCS(saved)
-
 	forward, reverse, errors := importgraph.Build(&build.Default)
 
 	// Test direct edges.
 	// We throw in crypto/hmac to prove that external test files
 	// (such as this one) are inspected.
-	for _, p := range []string{"go/build", "runtime", "testing", "crypto/hmac"} {
+	for _, p := range []string{"go/build", "testing", "crypto/hmac"} {
 		if !forward[this][p] {
 			t.Errorf("forward[importgraph][%s] not found", p)
 		}
@@ -40,7 +36,7 @@ func TestBuild(t *testing.T) {
 	}
 
 	// Test non-existent direct edges
-	for _, p := range []string{"fmt", "errors", "reflect"} {
+	for _, p := range []string{"errors", "reflect"} {
 		if forward[this][p] {
 			t.Errorf("unexpected: forward[importgraph][%s] found", p)
 		}

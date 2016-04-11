@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 // ssadump: a tool for displaying and interpreting the SSA form of Go programs.
 package main // import "github.com/Go-zh/tools/cmd/ssadump"
 
@@ -9,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
+	"go/types"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -18,11 +21,11 @@ import (
 	"github.com/Go-zh/tools/go/ssa"
 	"github.com/Go-zh/tools/go/ssa/interp"
 	"github.com/Go-zh/tools/go/ssa/ssautil"
-	"github.com/Go-zh/tools/go/types"
 )
 
+// flags
 var (
-	modeFlag = ssa.BuilderModeFlag(flag.CommandLine, "build", 0)
+	mode = ssa.BuilderMode(0)
 
 	testFlag = flag.Bool("test", false, "Loads test code (*_test.go) for imported packages.")
 
@@ -33,7 +36,14 @@ The value is a sequence of zero or more more of these letters:
 R	disable [R]ecover() from panic; show interpreter crash instead.
 T	[T]race execution of the program.  Best for single-threaded programs!
 `)
+
+	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 )
+
+func init() {
+	flag.Var(&mode, "build", ssa.BuilderModeDoc)
+	flag.Var((*buildutil.TagsFlag)(&build.Default.BuildTags), "tags", buildutil.TagsFlagDoc)
+}
 
 const usage = `SSA builder and interpreter.
 Usage: ssadump [<flag> ...] <args> ...
@@ -50,22 +60,6 @@ The entry point depends on the -test flag:
 if clear, it runs the first package named main.
 if set, it runs the tests of each package.
 `
-
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-
-func init() {
-	flag.Var((*buildutil.TagsFlag)(&build.Default.BuildTags), "tags", buildutil.TagsFlagDoc)
-
-	// If $GOMAXPROCS isn't set, use the full capacity of the machine.
-	// For small machines, use at least 4 threads.
-	if os.Getenv("GOMAXPROCS") == "" {
-		n := runtime.NumCPU()
-		if n < 4 {
-			n = 4
-		}
-		runtime.GOMAXPROCS(n)
-	}
-}
 
 func main() {
 	if err := doMain(); err != nil {
@@ -137,7 +131,7 @@ func doMain() error {
 	}
 
 	// Create and build SSA-form program representation.
-	prog := ssautil.CreateProgram(iprog, *modeFlag)
+	prog := ssautil.CreateProgram(iprog, mode)
 
 	// Build and display only the initial packages
 	// (and synthetic wrappers), unless -run is specified.
@@ -147,7 +141,7 @@ func doMain() error {
 
 	// Run the interpreter.
 	if *runFlag {
-		prog.BuildAll()
+		prog.Build()
 
 		var main *ssa.Package
 		pkgs := prog.AllPackages()
@@ -162,7 +156,7 @@ func doMain() error {
 		} else {
 			// Otherwise, run main.main.
 			for _, pkg := range pkgs {
-				if pkg.Object.Name() == "main" {
+				if pkg.Pkg.Name() == "main" {
 					main = pkg
 					if main.Func("main") == nil {
 						return fmt.Errorf("no func main() in main package")
@@ -180,7 +174,7 @@ func doMain() error {
 				build.Default.GOARCH, runtime.GOARCH)
 		}
 
-		interp.Interpret(main, interpMode, conf.TypeChecker.Sizes, main.Object.Path(), args)
+		interp.Interpret(main, interpMode, conf.TypeChecker.Sizes, main.Pkg.Path(), args)
 	}
 	return nil
 }

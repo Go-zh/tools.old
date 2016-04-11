@@ -5,19 +5,15 @@
 package rename
 
 import (
-	"bytes"
 	"fmt"
-	"go/ast"
 	"go/build"
-	"go/format"
-	"go/token"
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
-	"golang.org/x/tools/go/buildutil"
+	"github.com/Go-zh/tools/go/buildutil"
 )
 
 func TestErrors(t *testing.T) {
@@ -79,12 +75,8 @@ var _ foo.T
 		ctxt := test.ctxt
 
 		got := make(map[string]string)
-		rewriteFile = func(fset *token.FileSet, f *ast.File, orig string) error {
-			var out bytes.Buffer
-			if err := format.Node(&out, fset, f); err != nil {
-				return err
-			}
-			got[orig] = out.String()
+		writeFile = func(filename string, content []byte) error {
+			got[filename] = string(content)
 			return nil
 		}
 		moveDirectory = func(from, to string) error {
@@ -238,6 +230,43 @@ var _ bar.T
 `,
 			},
 		},
+		// package import comments
+		{
+			ctxt: fakeContext(map[string][]string{"foo": {`package foo // import "baz"`}}),
+			from: "foo", to: "bar",
+			want: map[string]string{"/go/src/bar/0.go": `package bar // import "bar"
+`},
+		},
+		{
+			ctxt: fakeContext(map[string][]string{"foo": {`package foo /* import "baz" */`}}),
+			from: "foo", to: "bar",
+			want: map[string]string{"/go/src/bar/0.go": `package bar /* import "bar" */
+`},
+		},
+		{
+			ctxt: fakeContext(map[string][]string{"foo": {`package foo       // import "baz"`}}),
+			from: "foo", to: "bar",
+			want: map[string]string{"/go/src/bar/0.go": `package bar // import "bar"
+`},
+		},
+		{
+			ctxt: fakeContext(map[string][]string{"foo": {`package foo
+// import " this is not an import comment`}}),
+			from: "foo", to: "bar",
+			want: map[string]string{"/go/src/bar/0.go": `package bar
+
+// import " this is not an import comment
+`},
+		},
+		{
+			ctxt: fakeContext(map[string][]string{"foo": {`package foo
+/* import " this is not an import comment */`}}),
+			from: "foo", to: "bar",
+			want: map[string]string{"/go/src/bar/0.go": `package bar
+
+/* import " this is not an import comment */
+`},
+		},
 	}
 
 	for _, test := range tests {
@@ -267,12 +296,8 @@ var _ bar.T
 			}
 			got[path] = string(bytes)
 		})
-		rewriteFile = func(fset *token.FileSet, f *ast.File, orig string) error {
-			var out bytes.Buffer
-			if err := format.Node(&out, fset, f); err != nil {
-				return err
-			}
-			got[orig] = out.String()
+		writeFile = func(filename string, content []byte) error {
+			got[filename] = string(content)
 			return nil
 		}
 		moveDirectory = func(from, to string) error {

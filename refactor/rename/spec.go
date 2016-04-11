@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package rename
 
 // This file contains logic related to specifying a renaming: parsing of
@@ -15,6 +17,8 @@ import (
 	"go/build"
 	"go/parser"
 	"go/token"
+	"go/types"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,7 +26,6 @@ import (
 
 	"github.com/Go-zh/tools/go/buildutil"
 	"github.com/Go-zh/tools/go/loader"
-	"github.com/Go-zh/tools/go/types"
 )
 
 // A spec specifies an entity to rename.
@@ -113,9 +116,13 @@ func parseFromFlag(ctxt *build.Context, fromFlag string) (*spec, error) {
 		spec.fromName = spec.searchFor
 	}
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
 	// Sanitize the package.
-	// TODO(adonovan): test with relative packages.  May need loader changes.
-	bp, err := ctxt.Import(spec.pkg, ".", build.FindOnly)
+	bp, err := ctxt.Import(spec.pkg, cwd, build.FindOnly)
 	if err != nil {
 		return nil, fmt.Errorf("can't find package %q", spec.pkg)
 	}
@@ -126,7 +133,7 @@ func parseFromFlag(ctxt *build.Context, fromFlag string) (*spec, error) {
 	}
 
 	if Verbose {
-		fmt.Fprintf(os.Stderr, "-from spec: %+v\n", spec)
+		log.Printf("-from spec: %+v", spec)
 	}
 
 	return &spec, nil
@@ -271,20 +278,23 @@ func findFromObjects(iprog *loader.Program, spec *spec) ([]types.Object, error) 
 	// for main packages, even though that's not an import path.
 	// Seems like a bug.
 	//
-	// pkgObj := iprog.ImportMap[spec.pkg]
-	// if pkgObj == nil {
+	// pkg := iprog.ImportMap[spec.pkg]
+	// if pkg == nil {
 	// 	return fmt.Errorf("cannot find package %s", spec.pkg) // can't happen?
 	// }
+	// info := iprog.AllPackages[pkg]
 
 	// Workaround: lookup by value.
-	var pkgObj *types.Package
-	for pkg := range iprog.AllPackages {
+	var info *loader.PackageInfo
+	var pkg *types.Package
+	for pkg, info = range iprog.AllPackages {
 		if pkg.Path() == spec.pkg {
-			pkgObj = pkg
 			break
 		}
 	}
-	info := iprog.AllPackages[pkgObj]
+	if info == nil {
+		return nil, fmt.Errorf("package %q was not loaded", spec.pkg)
+	}
 
 	objects, err := findObjects(info, spec)
 	if err != nil {
@@ -451,6 +461,15 @@ func findObjects(info *loader.PackageInfo, spec *spec) ([]types.Object, error) {
 		}
 
 		if spec.searchFor == "" {
+			// If it is an embedded field, return the type of the field.
+			if v, ok := obj.(*types.Var); ok && v.Anonymous() {
+				switch t := v.Type().(type) {
+				case *types.Pointer:
+					return []types.Object{t.Elem().(*types.Named).Obj()}, nil
+				case *types.Named:
+					return []types.Object{t.Obj()}, nil
+				}
+			}
 			return []types.Object{obj}, nil
 		}
 

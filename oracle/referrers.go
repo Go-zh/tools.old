@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package oracle
 
 import (
@@ -9,11 +11,11 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 	"io/ioutil"
 	"sort"
 
 	"github.com/Go-zh/tools/go/loader"
-	"github.com/Go-zh/tools/go/types"
 	"github.com/Go-zh/tools/oracle/serial"
 	"github.com/Go-zh/tools/refactor/importgraph"
 )
@@ -24,7 +26,7 @@ func referrers(q *Query) error {
 	lconf := loader.Config{Build: q.Build}
 	allowErrors(&lconf)
 
-	if err := importQueryPackage(q.Pos, &lconf); err != nil {
+	if _, err := importQueryPackage(q.Pos, &lconf); err != nil {
 		return err
 	}
 
@@ -168,29 +170,33 @@ func (r *referrersResult) display(printf printfFunc) {
 	// Show referring lines, like grep.
 	type fileinfo struct {
 		refs     []*ast.Ident
-		linenums []int       // line number of refs[i]
-		data     chan []byte // file contents
+		linenums []int            // line number of refs[i]
+		data     chan interface{} // file contents or error
 	}
 	var fileinfos []*fileinfo
 	fileinfosByName := make(map[string]*fileinfo)
 
 	// First pass: start the file reads concurrently.
+	sema := make(chan struct{}, 20) // counting semaphore to limit I/O concurrency
 	for _, ref := range r.refs {
 		posn := r.qpos.fset.Position(ref.Pos())
 		fi := fileinfosByName[posn.Filename]
 		if fi == nil {
-			fi = &fileinfo{data: make(chan []byte)}
+			fi = &fileinfo{data: make(chan interface{})}
 			fileinfosByName[posn.Filename] = fi
 			fileinfos = append(fileinfos, fi)
 
 			// First request for this file:
 			// start asynchronous read.
 			go func() {
+				sema <- struct{}{} // acquire token
 				content, err := ioutil.ReadFile(posn.Filename)
+				<-sema // release token
 				if err != nil {
-					content = []byte(fmt.Sprintf("error: %v", err))
+					fi.data <- err
+				} else {
+					fi.data <- content
 				}
-				fi.data <- content
 			}()
 		}
 		fi.refs = append(fi.refs, ref)
@@ -200,8 +206,20 @@ func (r *referrersResult) display(printf printfFunc) {
 	// Second pass: print refs in original order.
 	// One line may have several refs at different columns.
 	for _, fi := range fileinfos {
-		content := <-fi.data // wait for I/O completion
-		lines := bytes.Split(content, []byte("\n"))
+		v := <-fi.data // wait for I/O completion
+
+		// Print one item for all refs in a file that could not
+		// be loaded (perhaps due to //line directives).
+		if err, ok := v.(error); ok {
+			var suffix string
+			if more := len(fi.refs) - 1; more > 0 {
+				suffix = fmt.Sprintf(" (+ %d more refs in this file)", more)
+			}
+			printf(fi.refs[0], "%v%s", err, suffix)
+			continue
+		}
+
+		lines := bytes.Split(v.([]byte), []byte("\n"))
 		for i, ref := range fi.refs {
 			printf(ref, "%s", lines[fi.linenums[i]-1])
 		}

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.5
+
 package analysis
 
 // This file computes the "implements" relation over all pairs of
@@ -11,9 +13,9 @@ package analysis
 // belong to different packages and at least one is not exported?
 
 import (
+	"go/types"
 	"sort"
 
-	"github.com/Go-zh/tools/go/types"
 	"github.com/Go-zh/tools/go/types/typeutil"
 )
 
