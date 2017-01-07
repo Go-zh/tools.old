@@ -39,14 +39,14 @@ func (b godocBuilder) Init(dir, hostport string, heads map[string]string) (*exec
 	install := exec.Command(goBin, "install", "github.com/Go-zh/tools/cmd/godoc")
 	install.Env = []string{
 		"GOROOT=" + goDir,
-		"GOPATH=" + filepath.Join(dir, "gopath"),
+		"GOPATH=" + goPath,
 		"GOROOT_BOOTSTRAP=" + os.Getenv("GOROOT_BOOTSTRAP"),
 	}
 	if err := runErr(install); err != nil {
 		return nil, err
 	}
 
-	godocBin := filepath.Join(goDir, "bin/godoc")
+	godocBin := filepath.Join(goPath, "bin/godoc")
 	godoc := exec.Command(godocBin, "-http="+hostport, "-index", "-index_interval=-1s")
 	godoc.Env = []string{"GOROOT=" + goDir}
 	// TODO(adg): log this somewhere useful

@@ -40,7 +40,6 @@ func describe(q *Query) error {
 	if err != nil {
 		return err
 	}
-	q.Fset = lprog.Fset
 
 	qpos, err := parseQueryPos(lprog, q.Pos, true) // (need exact pos)
 	if err != nil {
@@ -52,43 +51,48 @@ func describe(q *Query) error {
 			astutil.NodeDescription(qpos.path[0]), pathToString(qpos.path))
 	}
 
+	var qr QueryResult
 	path, action := findInterestingNode(qpos.info, qpos.path)
 	switch action {
 	case actionExpr:
-		q.result, err = describeValue(qpos, path)
+		qr, err = describeValue(qpos, path)
 
 	case actionType:
-		q.result, err = describeType(qpos, path)
+		qr, err = describeType(qpos, path)
 
 	case actionPackage:
-		q.result, err = describePackage(qpos, path)
+		qr, err = describePackage(qpos, path)
 
 	case actionStmt:
-		q.result, err = describeStmt(qpos, path)
+		qr, err = describeStmt(qpos, path)
 
 	case actionUnknown:
-		q.result = &describeUnknownResult{path[0]}
+		qr = &describeUnknownResult{path[0]}
 
 	default:
 		panic(action) // unreachable
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	q.Output(lprog.Fset, qr)
+	return nil
 }
 
 type describeUnknownResult struct {
 	node ast.Node
 }
 
-func (r *describeUnknownResult) display(printf printfFunc) {
+func (r *describeUnknownResult) PrintPlain(printf printfFunc) {
 	// Nothing much to say about misc syntax.
 	printf(r.node, "%s", astutil.NodeDescription(r.node))
 }
 
-func (r *describeUnknownResult) toSerial(res *serial.Result, fset *token.FileSet) {
-	res.Describe = &serial.Describe{
+func (r *describeUnknownResult) JSON(fset *token.FileSet) []byte {
+	return toJSON(&serial.Describe{
 		Desc: astutil.NodeDescription(r.node),
 		Pos:  fset.Position(r.node.Pos()).String(),
-	}
+	})
 }
 
 type action int
@@ -328,6 +332,9 @@ func describeValue(qpos *queryPos, path []ast.Node) (*describeValueResult, error
 		t = types.Typ[types.Invalid]
 	}
 	constVal := qpos.info.Types[expr].Value
+	if c, ok := obj.(*types.Const); ok {
+		constVal = c.Val()
+	}
 
 	return &describeValueResult{
 		qpos:     qpos,
@@ -350,10 +357,10 @@ type describeValueResult struct {
 	fields   []describeField
 }
 
-func (r *describeValueResult) display(printf printfFunc) {
+func (r *describeValueResult) PrintPlain(printf printfFunc) {
 	var prefix, suffix string
 	if r.constVal != nil {
-		suffix = fmt.Sprintf(" of constant value %s", constValString(r.constVal))
+		suffix = fmt.Sprintf(" of value %s", r.constVal)
 	}
 	switch obj := r.obj.(type) {
 	case *types.Func:
@@ -393,7 +400,7 @@ func (r *describeValueResult) display(printf printfFunc) {
 	printFields(printf, r.expr, r.fields)
 }
 
-func (r *describeValueResult) toSerial(res *serial.Result, fset *token.FileSet) {
+func (r *describeValueResult) JSON(fset *token.FileSet) []byte {
 	var value, objpos string
 	if r.constVal != nil {
 		value = r.constVal.String()
@@ -402,7 +409,7 @@ func (r *describeValueResult) toSerial(res *serial.Result, fset *token.FileSet) 
 		objpos = fset.Position(r.obj.Pos()).String()
 	}
 
-	res.Describe = &serial.Describe{
+	return toJSON(&serial.Describe{
 		Desc:   astutil.NodeDescription(r.expr),
 		Pos:    fset.Position(r.expr.Pos()).String(),
 		Detail: "value",
@@ -411,7 +418,7 @@ func (r *describeValueResult) toSerial(res *serial.Result, fset *token.FileSet) 
 			Value:  value,
 			ObjPos: objpos,
 		},
-	}
+	})
 }
 
 // ---- TYPE ------------------------------------------------------------
@@ -519,11 +526,12 @@ func printFields(printf printfFunc, node ast.Node, fields []describeField) {
 	}
 }
 
-func (r *describeTypeResult) display(printf printfFunc) {
+func (r *describeTypeResult) PrintPlain(printf printfFunc) {
 	printf(r.node, "%s", r.description)
 
 	// Show the underlying type for a reference to a named type.
 	if nt, ok := r.typ.(*types.Named); ok && r.node.Pos() != nt.Obj().Pos() {
+		// TODO(adonovan): improve display of complex struct/interface types.
 		printf(nt.Obj(), "defined as %s", r.qpos.typeString(nt.Underlying()))
 	}
 
@@ -540,13 +548,13 @@ func (r *describeTypeResult) display(printf printfFunc) {
 	printFields(printf, r.node, r.fields)
 }
 
-func (r *describeTypeResult) toSerial(res *serial.Result, fset *token.FileSet) {
+func (r *describeTypeResult) JSON(fset *token.FileSet) []byte {
 	var namePos, nameDef string
 	if nt, ok := r.typ.(*types.Named); ok {
 		namePos = fset.Position(nt.Obj().Pos()).String()
 		nameDef = nt.Underlying().String()
 	}
-	res.Describe = &serial.Describe{
+	return toJSON(&serial.Describe{
 		Desc:   r.description,
 		Pos:    fset.Position(r.node.Pos()).String(),
 		Detail: "type",
@@ -556,7 +564,7 @@ func (r *describeTypeResult) toSerial(res *serial.Result, fset *token.FileSet) {
 			NameDef: nameDef,
 			Methods: methodsToSerial(r.qpos.info.Pkg, r.methods, fset),
 		},
-	}
+	})
 }
 
 // ---- PACKAGE ------------------------------------------------------------
@@ -633,7 +641,7 @@ type describeMember struct {
 	methods []*types.Selection // in types.MethodSet order
 }
 
-func (r *describePackageResult) display(printf printfFunc) {
+func (r *describePackageResult) PrintPlain(printf printfFunc) {
 	printf(r.node, "%s", r.description)
 
 	// Compute max width of name "column".
@@ -652,25 +660,13 @@ func (r *describePackageResult) display(printf printfFunc) {
 	}
 }
 
-// Helper function to adjust go1.5 numeric go/constant formatting.
-// Can be removed once we give up compatibility with go1.5.
-func constValString(v exact.Value) string {
-	if v.Kind() == exact.Float {
-		// In go1.5, go/constant floating-point values are printed
-		// as fractions. Make them appear as floating-point numbers.
-		f, _ := exact.Float64Val(v)
-		return fmt.Sprintf("%g", f)
-	}
-	return v.String()
-}
-
 func formatMember(obj types.Object, maxname int) string {
 	qualifier := types.RelativeTo(obj.Pkg())
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "%-5s %-*s", tokenOf(obj), maxname, obj.Name())
 	switch obj := obj.(type) {
 	case *types.Const:
-		fmt.Fprintf(&buf, " %s = %s", types.TypeString(obj.Type(), qualifier), constValString(obj.Val()))
+		fmt.Fprintf(&buf, " %s = %s", types.TypeString(obj.Type(), qualifier), obj.Val())
 
 	case *types.Func:
 		fmt.Fprintf(&buf, " %s", types.TypeString(obj.Type(), qualifier))
@@ -700,14 +696,14 @@ func formatMember(obj types.Object, maxname int) string {
 	return buf.String()
 }
 
-func (r *describePackageResult) toSerial(res *serial.Result, fset *token.FileSet) {
+func (r *describePackageResult) JSON(fset *token.FileSet) []byte {
 	var members []*serial.DescribeMember
 	for _, mem := range r.members {
 		typ := mem.obj.Type()
 		var val string
 		switch mem := mem.obj.(type) {
 		case *types.Const:
-			val = constValString(mem.Val())
+			val = mem.Val().String()
 		case *types.TypeName:
 			typ = typ.Underlying()
 		}
@@ -720,7 +716,7 @@ func (r *describePackageResult) toSerial(res *serial.Result, fset *token.FileSet
 			Methods: methodsToSerial(r.pkg, mem.methods, fset),
 		})
 	}
-	res.Describe = &serial.Describe{
+	return toJSON(&serial.Describe{
 		Desc:   r.description,
 		Pos:    fset.Position(r.node.Pos()).String(),
 		Detail: "package",
@@ -728,7 +724,7 @@ func (r *describePackageResult) toSerial(res *serial.Result, fset *token.FileSet
 			Path:    r.pkg.Path(),
 			Members: members,
 		},
-	}
+	})
 }
 
 func tokenOf(o types.Object) string {
@@ -778,16 +774,16 @@ type describeStmtResult struct {
 	description string
 }
 
-func (r *describeStmtResult) display(printf printfFunc) {
+func (r *describeStmtResult) PrintPlain(printf printfFunc) {
 	printf(r.node, "%s", r.description)
 }
 
-func (r *describeStmtResult) toSerial(res *serial.Result, fset *token.FileSet) {
-	res.Describe = &serial.Describe{
+func (r *describeStmtResult) JSON(fset *token.FileSet) []byte {
+	return toJSON(&serial.Describe{
 		Desc:   r.description,
 		Pos:    fset.Position(r.node.Pos()).String(),
 		Detail: "unknown",
-	}
+	})
 }
 
 // ------------------- Utilities -------------------

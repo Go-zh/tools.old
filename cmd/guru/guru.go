@@ -11,6 +11,7 @@ package main
 //   (&T{}, var t T, new(T), new(struct{array [3]T}), etc.
 
 import (
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/build"
@@ -18,9 +19,10 @@ import (
 	"go/token"
 	"go/types"
 	"io"
+	"log"
 	"path/filepath"
+	"strings"
 
-	"github.com/Go-zh/tools/cmd/guru/serial"
 	"github.com/Go-zh/tools/go/ast/astutil"
 	"github.com/Go-zh/tools/go/buildutil"
 	"github.com/Go-zh/tools/go/loader"
@@ -30,10 +32,15 @@ import (
 
 type printfFunc func(pos interface{}, format string, args ...interface{})
 
-// queryResult is the interface of each query-specific result type.
-type queryResult interface {
-	toSerial(res *serial.Result, fset *token.FileSet)
-	display(printf printfFunc)
+// A QueryResult is an item of output.  Each query produces a stream of
+// query results, calling Query.Output for each one.
+type QueryResult interface {
+	// JSON returns the QueryResult in JSON form.
+	JSON(fset *token.FileSet) []byte
+
+	// PrintPlain prints the QueryResult in plain text form.
+	// The implementation calls printfFunc to print each line of output.
+	PrintPlain(printf printfFunc)
 }
 
 // A QueryPos represents the position provided as input to a query:
@@ -65,7 +72,6 @@ func (qpos *queryPos) selectionString(sel *types.Selection) string {
 
 // A Query specifies a single guru query.
 type Query struct {
-	Mode  string         // query mode ("callers", etc)
 	Pos   string         // query position
 	Build *build.Context // package loading configuration
 
@@ -74,32 +80,13 @@ type Query struct {
 	PTALog     io.Writer // (optional) pointer-analysis log file
 	Reflection bool      // model reflection soundly (currently slow).
 
-	// Populated during Run()
-	Fset   *token.FileSet
-	result queryResult
-}
-
-// Serial returns an instance of serial.Result, which implements the
-// {xml,json}.Marshaler interfaces so that query results can be
-// serialized as JSON or XML.
-//
-func (q *Query) Serial() *serial.Result {
-	resj := &serial.Result{Mode: q.Mode}
-	q.result.toSerial(resj, q.Fset)
-	return resj
-}
-
-// WriteTo writes the guru query result res to out in a compiler diagnostic format.
-func (q *Query) WriteTo(out io.Writer) {
-	printf := func(pos interface{}, format string, args ...interface{}) {
-		fprintf(out, q.Fset, pos, format, args...)
-	}
-	q.result.display(printf)
+	// result-printing function
+	Output func(*token.FileSet, QueryResult)
 }
 
 // Run runs an guru query and populates its Fset and Result.
-func Run(q *Query) error {
-	switch q.Mode {
+func Run(mode string, q *Query) error {
+	switch mode {
 	case "callees":
 		return callees(q)
 	case "callers":
@@ -125,7 +112,7 @@ func Run(q *Query) error {
 	case "what":
 		return what(q)
 	default:
-		return fmt.Errorf("invalid mode: %q", q.Mode)
+		return fmt.Errorf("invalid mode: %q", mode)
 	}
 }
 
@@ -143,26 +130,18 @@ func setPTAScope(lconf *loader.Config, scope []string) error {
 // Create a pointer.Config whose scope is the initial packages of lprog
 // and their dependencies.
 func setupPTA(prog *ssa.Program, lprog *loader.Program, ptaLog io.Writer, reflection bool) (*pointer.Config, error) {
-	// TODO(adonovan): the body of this function is essentially
-	// duplicated in all go/pointer clients.  Refactor.
-
 	// For each initial package (specified on the command line),
 	// if it has a main function, analyze that,
 	// otherwise analyze its tests, if any.
-	var testPkgs, mains []*ssa.Package
+	var mains []*ssa.Package
 	for _, info := range lprog.InitialPackages() {
-		initialPkg := prog.Package(info.Pkg)
+		p := prog.Package(info.Pkg)
 
 		// Add package to the pointer analysis scope.
-		if initialPkg.Func("main") != nil {
-			mains = append(mains, initialPkg)
-		} else {
-			testPkgs = append(testPkgs, initialPkg)
-		}
-	}
-	if testPkgs != nil {
-		if p := prog.CreateTestMainPackage(testPkgs...); p != nil {
+		if p.Pkg.Name() == "main" && p.Func("main") != nil {
 			mains = append(mains, p)
+		} else if main := prog.CreateTestMainPackage(p); main != nil {
+			mains = append(mains, main)
 		}
 	}
 	if mains == nil {
@@ -187,32 +166,35 @@ func importQueryPackage(pos string, conf *loader.Config) (string, error) {
 
 	_, importPath, err := guessImportPath(filename, conf.Build)
 	if err != nil {
-		return "", err // can't find GOPATH dir
-	}
+		// Can't find GOPATH dir.
+		// Treat the query file as its own package.
+		importPath = "command-line-arguments"
+		conf.CreateFromFilenames(importPath, filename)
+	} else {
+		// Check that it's possible to load the queried package.
+		// (e.g. guru tests contain different 'package' decls in same dir.)
+		// Keep consistent with logic in loader/util.go!
+		cfg2 := *conf.Build
+		cfg2.CgoEnabled = false
+		bp, err := cfg2.Import(importPath, "", 0)
+		if err != nil {
+			return "", err // no files for package
+		}
 
-	// Check that it's possible to load the queried package.
-	// (e.g. guru tests contain different 'package' decls in same dir.)
-	// Keep consistent with logic in loader/util.go!
-	cfg2 := *conf.Build
-	cfg2.CgoEnabled = false
-	bp, err := cfg2.Import(importPath, "", 0)
-	if err != nil {
-		return "", err // no files for package
-	}
-
-	switch pkgContainsFile(bp, filename) {
-	case 'T':
-		conf.ImportWithTests(importPath)
-	case 'X':
-		conf.ImportWithTests(importPath)
-		importPath += "_test" // for TypeCheckFuncBodies
-	case 'G':
-		conf.Import(importPath)
-	default:
-		// This happens for ad-hoc packages like
-		// $GOROOT/src/net/http/triv.go.
-		return "", fmt.Errorf("package %q doesn't contain file %s",
-			importPath, filename)
+		switch pkgContainsFile(bp, filename) {
+		case 'T':
+			conf.ImportWithTests(importPath)
+		case 'X':
+			conf.ImportWithTests(importPath)
+			importPath += "_test" // for TypeCheckFuncBodies
+		case 'G':
+			conf.Import(importPath)
+		default:
+			// This happens for ad-hoc packages like
+			// $GOROOT/src/net/http/triv.go.
+			return "", fmt.Errorf("package %q doesn't contain file %s",
+				importPath, filename)
+		}
 	}
 
 	conf.TypeCheckFuncBodies = func(p string) bool { return p == importPath }
@@ -274,6 +256,53 @@ func parseQueryPos(lprog *loader.Program, pos string, needExact bool) (*queryPos
 
 // ---------- Utilities ----------
 
+// loadWithSoftErrors calls lconf.Load, suppressing "soft" errors.  (See Go issue 16530.)
+// TODO(adonovan): Once the loader has an option to allow soft errors,
+// replace calls to loadWithSoftErrors with loader calls with that parameter.
+func loadWithSoftErrors(lconf *loader.Config) (*loader.Program, error) {
+	lconf.AllowErrors = true
+
+	// Ideally we would just return conf.Load() here, but go/types
+	// reports certain "soft" errors that gc does not (Go issue 14596).
+	// As a workaround, we set AllowErrors=true and then duplicate
+	// the loader's error checking but allow soft errors.
+	// It would be nice if the loader API permitted "AllowErrors: soft".
+	prog, err := lconf.Load()
+	if err != nil {
+		return nil, err
+	}
+	var errpkgs []string
+	// Report hard errors in indirectly imported packages.
+	for _, info := range prog.AllPackages {
+		if containsHardErrors(info.Errors) {
+			errpkgs = append(errpkgs, info.Pkg.Path())
+		} else {
+			// Enable SSA construction for packages containing only soft errors.
+			info.TransitivelyErrorFree = true
+		}
+	}
+	if errpkgs != nil {
+		var more string
+		if len(errpkgs) > 3 {
+			more = fmt.Sprintf(" and %d more", len(errpkgs)-3)
+			errpkgs = errpkgs[:3]
+		}
+		return nil, fmt.Errorf("couldn't load packages due to errors: %s%s",
+			strings.Join(errpkgs, ", "), more)
+	}
+	return prog, err
+}
+
+func containsHardErrors(errors []error) bool {
+	for _, err := range errors {
+		if err, ok := err.(types.Error); ok && err.Soft {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 // allowErrors causes type errors to be silently ignored.
 // (Not suitable if SSA construction follows.)
 func allowErrors(lconf *loader.Config) {
@@ -319,7 +348,6 @@ func deref(typ types.Type) types.Type {
 //
 // The output format is is compatible with the 'gnu'
 // compilation-error-regexp in Emacs' compilation mode.
-// TODO(adonovan): support other editors.
 //
 func fprintf(w io.Writer, fset *token.FileSet, pos interface{}, format string, args ...interface{}) {
 	var start, end token.Pos
@@ -330,6 +358,14 @@ func fprintf(w io.Writer, fset *token.FileSet, pos interface{}, format string, a
 	case token.Pos:
 		start = pos
 		end = start
+	case *types.PkgName:
+		// The Pos of most PkgName objects does not coincide with an identifier,
+		// so we suppress the usual start+len(name) heuristic for types.Objects.
+		start = pos.Pos()
+		end = start
+	case types.Object:
+		start = pos.Pos()
+		end = start + token.Pos(len(pos.Name())) // heuristic
 	case interface {
 		Pos() token.Pos
 	}:
@@ -359,4 +395,12 @@ func fprintf(w io.Writer, fset *token.FileSet, pos interface{}, format string, a
 	}
 	fmt.Fprintf(w, format, args...)
 	io.WriteString(w, "\n")
+}
+
+func toJSON(x interface{}) []byte {
+	b, err := json.MarshalIndent(x, "", "\t")
+	if err != nil {
+		log.Fatalf("JSON error: %v", err)
+	}
+	return b
 }

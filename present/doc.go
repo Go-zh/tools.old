@@ -77,14 +77,22 @@ Fonts:
 Within the input for plain text or lists, text bracketed by font
 markers will be presented in italic, bold, or program font.
 Marker characters are _ (italic), * (bold) and ` (program font).
-Unmatched markers appear as plain text.
-Within marked text, a single marker character becomes a space
-and a doubled single marker quotes the marker character.
+An opening marker must be preceded by a space or punctuation
+character or else be at start of a line; similarly, a closing
+marker must be followed by a space or punctuation character or
+else be at the end of a line. Unmatched markers appear as plain text.
+There must be no spaces between markers. Within marked text,
+a single marker character becomes a space and a doubled single
+marker quotes the marker character.
+
+at the beginning of a line or
+else be preceded by a space or punctuation; similarly a closing
+marker must be at the end of the lineo
 
 	_italic_
 	*bold*
 	`program`
-	_this_is_all_italic_
+	Markup—_especially_italic_text_—can easily be overused.
 	_Why_use_scoped__ptr_? Use plain ***ptr* instead.
 
 Inline links:
@@ -223,6 +231,36 @@ that cannot be created using only the slide format.
 It is your responsibilty to make sure the included HTML is valid and safe.
 
 	.html file.html
+
+Presenter notes:
+
+Presenter notes may be enabled by appending the "-notes" flag when you run
+your "present" binary.
+
+This will allow you to open a second window by pressing 'N' from your browser
+displaying your slides. The second window is completely synced with your main
+window, except that presenter notes are only visible on the second window.
+
+Lines that begin with ": " are treated as presenter notes.
+
+	* Title of slide
+
+	Some Text
+
+	: Presenter notes (first paragraph)
+	: Presenter notes (subsequent paragraph(s))
+
+Notes may appear anywhere within the slide text. For example:
+
+	* Title of slide
+
+	: Presenter notes (first paragraph)
+
+	Some Text
+
+	: Presenter notes (subsequent paragraph(s))
+
+This has the same result as the example above.
 
 */
 package present // import "github.com/Go-zh/tools/present"

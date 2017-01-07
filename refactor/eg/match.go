@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build go1.5
-
 package eg
 
 import (
@@ -16,7 +14,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/Go-zh/tools/go/ast/astutil"
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 // matchExpr reports whether pattern x matches y.

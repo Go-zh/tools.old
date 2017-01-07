@@ -63,7 +63,6 @@ func implements(q *Query) error {
 	if err != nil {
 		return err
 	}
-	q.Fset = lprog.Fset
 
 	qpos, err := parseQueryPos(lprog, q.Pos, false)
 	if err != nil {
@@ -89,11 +88,17 @@ func implements(q *Query) error {
 				T = recv.Type()
 			}
 		}
+
+		// If not a method, use the expression's type.
+		if T == nil {
+			T = qpos.info.TypeOf(path[0].(ast.Expr))
+		}
+
 	case actionType:
 		T = qpos.info.TypeOf(path[0].(ast.Expr))
 	}
 	if T == nil {
-		return fmt.Errorf("no type or method here")
+		return fmt.Errorf("not a type, method, or value")
 	}
 
 	// Find all named types, even local types (which can have
@@ -179,9 +184,9 @@ func implements(q *Query) error {
 		}
 	}
 
-	q.result = &implementsResult{
+	q.Output(lprog.Fset, &implementsResult{
 		qpos, T, pos, to, from, fromPtr, method, toMethod, fromMethod, fromPtrMethod,
-	}
+	})
 	return nil
 }
 
@@ -201,7 +206,7 @@ type implementsResult struct {
 	fromPtrMethod []*types.Selection // method of type fromPtrMethod[i], if any
 }
 
-func (r *implementsResult) display(printf printfFunc) {
+func (r *implementsResult) PrintPlain(printf printfFunc) {
 	relation := "is implemented by"
 
 	meth := func(sel *types.Selection) {
@@ -298,8 +303,15 @@ func (r *implementsResult) display(printf printfFunc) {
 	}
 }
 
-func (r *implementsResult) toSerial(res *serial.Result, fset *token.FileSet) {
-	res.Implements = &serial.Implements{
+func (r *implementsResult) JSON(fset *token.FileSet) []byte {
+	var method *serial.DescribeMethod
+	if r.method != nil {
+		method = &serial.DescribeMethod{
+			Name: r.qpos.objectString(r.method),
+			Pos:  fset.Position(r.method.Pos()).String(),
+		}
+	}
+	return toJSON(&serial.Implements{
 		T:                       makeImplementsType(r.t, fset),
 		AssignableTo:            makeImplementsTypes(r.to, fset),
 		AssignableFrom:          makeImplementsTypes(r.from, fset),
@@ -307,13 +319,9 @@ func (r *implementsResult) toSerial(res *serial.Result, fset *token.FileSet) {
 		AssignableToMethod:      methodsToSerial(r.qpos.info.Pkg, r.toMethod, fset),
 		AssignableFromMethod:    methodsToSerial(r.qpos.info.Pkg, r.fromMethod, fset),
 		AssignableFromPtrMethod: methodsToSerial(r.qpos.info.Pkg, r.fromPtrMethod, fset),
-	}
-	if r.method != nil {
-		res.Implements.Method = &serial.DescribeMethod{
-			Name: r.qpos.objectString(r.method),
-			Pos:  fset.Position(r.method.Pos()).String(),
-		}
-	}
+		Method:                  method,
+	})
+
 }
 
 func makeImplementsTypes(tt []types.Type, fset *token.FileSet) []serial.ImplementsType {

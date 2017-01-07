@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build go1.5
-
 package rename
 
 // This file defines the safety checks for each kind of renaming.
@@ -14,8 +12,8 @@ import (
 	"go/token"
 	"go/types"
 
-	"github.com/Go-zh/tools/go/loader"
-	"github.com/Go-zh/tools/refactor/satisfy"
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/refactor/satisfy"
 )
 
 // errorf reports an error (e.g. conflict) and prevents file modification.
@@ -848,7 +846,7 @@ func someUse(info *loader.PackageInfo, obj types.Object) *ast.Ident {
 	return nil
 }
 
-// -- Plundered from github.com/Go-zh/tools/go/ssa -----------------
+// -- Plundered from golang.org/x/tools/go/ssa -----------------
 
 func isInterface(T types.Type) bool { return types.IsInterface(T) }
 

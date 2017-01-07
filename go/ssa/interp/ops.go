@@ -933,6 +933,8 @@ func write(fd int, b []byte) (int, error) {
 	return syswrite(fd, b)
 }
 
+var syswrite func(int, []byte) (int, error) // set on darwin/linux only
+
 // callBuiltin interprets a call to builtin fn with arguments args,
 // returning its result.
 func callBuiltin(caller *frame, callpos token.Pos, fn *ssa.Builtin, args []value) value {
@@ -1098,7 +1100,7 @@ func rangeIter(x value, t types.Type) iter {
 		// reflect.(Value).MapKeys machinery.
 		it := make(mapIter)
 		go func() {
-			for _, e := range x.table {
+			for _, e := range x.entries() {
 				for e != nil {
 					it <- [2]value{e.key, e.value}
 					e = e.next

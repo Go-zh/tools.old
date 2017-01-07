@@ -5,9 +5,9 @@
 // +build go1.5
 
 // Package rename contains the implementation of the 'gorename' command
-// whose main function is in github.com/Go-zh/tools/cmd/gorename.
+// whose main function is in golang.org/x/tools/cmd/gorename.
 // See the Usage constant for the command documentation.
-package rename // import "github.com/Go-zh/tools/refactor/rename"
+package rename // import "golang.org/x/tools/refactor/rename"
 
 import (
 	"bytes"
@@ -25,14 +25,15 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/Go-zh/tools/go/loader"
-	"github.com/Go-zh/tools/go/types/typeutil"
-	"github.com/Go-zh/tools/refactor/importgraph"
-	"github.com/Go-zh/tools/refactor/satisfy"
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/types/typeutil"
+	"golang.org/x/tools/refactor/importgraph"
+	"golang.org/x/tools/refactor/satisfy"
 )
 
 const Usage = `gorename: precise type-safe renaming of identifiers in Go source code.
@@ -163,7 +164,7 @@ type renamer struct {
 	iprog              *loader.Program
 	objsToUpdate       map[types.Object]bool
 	hadConflicts       bool
-	to                 string
+	from, to           string
 	satisfyConstraints map[satisfy.Constraint]bool
 	packages           map[*types.Package]*loader.PackageInfo // subset of iprog.AllPackages to inspect
 	msets              typeutil.MethodSetCache
@@ -174,11 +175,13 @@ var reportError = func(posn token.Position, message string) {
 	fmt.Fprintf(os.Stderr, "%s: %s\n", posn, message)
 }
 
-// importName renames imports of the package with the given path in
-// the given package.  If fromName is not empty, only imports as
-// fromName will be renamed.  If the renaming would lead to a conflict,
-// the file is left unchanged.
+// importName renames imports of fromPath within the package specified by info.
+// If fromName is not empty, importName renames only imports as fromName.
+// If the renaming would lead to a conflict, the file is left unchanged.
 func importName(iprog *loader.Program, info *loader.PackageInfo, fromPath, fromName, to string) error {
+	if fromName == to {
+		return nil // no-op (e.g. rename x/foo to y/foo)
+	}
 	for _, f := range info.Files {
 		var from types.Object
 		for _, imp := range f.Imports {
@@ -203,6 +206,8 @@ func importName(iprog *loader.Program, info *loader.PackageInfo, fromPath, fromN
 		}
 		r.check(from)
 		if r.hadConflicts {
+			reportError(iprog.Fset.Position(f.Imports[0].Pos()),
+				"skipping update of this file")
 			continue // ignore errors; leave the existing name
 		}
 		if err := r.update(); err != nil {
@@ -310,6 +315,7 @@ func Main(ctxt *build.Context, offsetFlag, fromFlag, to string) error {
 	r := renamer{
 		iprog:        iprog,
 		objsToUpdate: make(map[types.Object]bool),
+		from:         spec.fromName,
 		to:           to,
 		packages:     make(map[*types.Package]*loader.PackageInfo),
 	}
@@ -380,7 +386,41 @@ func loadProgram(ctxt *build.Context, pkgs map[string]bool) (*loader.Program, er
 	for pkg := range pkgs {
 		conf.ImportWithTests(pkg)
 	}
-	return conf.Load()
+
+	// Ideally we would just return conf.Load() here, but go/types
+	// reports certain "soft" errors that gc does not (Go issue 14596).
+	// As a workaround, we set AllowErrors=true and then duplicate
+	// the loader's error checking but allow soft errors.
+	// It would be nice if the loader API permitted "AllowErrors: soft".
+	conf.AllowErrors = true
+	prog, err := conf.Load()
+	var errpkgs []string
+	// Report hard errors in indirectly imported packages.
+	for _, info := range prog.AllPackages {
+		if containsHardErrors(info.Errors) {
+			errpkgs = append(errpkgs, info.Pkg.Path())
+		}
+	}
+	if errpkgs != nil {
+		var more string
+		if len(errpkgs) > 3 {
+			more = fmt.Sprintf(" and %d more", len(errpkgs)-3)
+			errpkgs = errpkgs[:3]
+		}
+		return nil, fmt.Errorf("couldn't load packages due to errors: %s%s",
+			strings.Join(errpkgs, ", "), more)
+	}
+	return prog, err
+}
+
+func containsHardErrors(errors []error) bool {
+	for _, err := range errors {
+		if err, ok := err.(types.Error); ok && err.Soft {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // requiresGlobalRename reports whether this renaming could potentially
@@ -416,6 +456,8 @@ func (r *renamer) update() error {
 	// token.File captures this distinction; filename does not.
 	var nidents int
 	var filesToUpdate = make(map[*token.File]bool)
+
+	docRegexp := regexp.MustCompile(`\b` + r.from + `\b`)
 	for _, info := range r.packages {
 		// Mutate the ASTs and note the filenames.
 		for id, obj := range info.Defs {
@@ -423,8 +465,15 @@ func (r *renamer) update() error {
 				nidents++
 				id.Name = r.to
 				filesToUpdate[r.iprog.Fset.File(id.Pos())] = true
+				// Perform the rename in doc comments too.
+				if doc := r.docComment(id); doc != nil {
+					for _, comment := range doc.List {
+						comment.Text = docRegexp.ReplaceAllString(comment.Text, r.to)
+					}
+				}
 			}
 		}
+
 		for id, obj := range info.Uses {
 			if r.objsToUpdate[obj] {
 				nidents++
@@ -471,6 +520,35 @@ func (r *renamer) update() error {
 	}
 	if nerrs > 0 {
 		return fmt.Errorf("failed to rewrite %d file%s", nerrs, plural(nerrs))
+	}
+	return nil
+}
+
+// docComment returns the doc for an identifier.
+func (r *renamer) docComment(id *ast.Ident) *ast.CommentGroup {
+	_, nodes, _ := r.iprog.PathEnclosingInterval(id.Pos(), id.End())
+	for _, node := range nodes {
+		switch decl := node.(type) {
+		case *ast.FuncDecl:
+			return decl.Doc
+		case *ast.Field:
+			return decl.Doc
+		case *ast.GenDecl:
+			return decl.Doc
+		// For {Type,Value}Spec, if the doc on the spec is absent,
+		// search for the enclosing GenDecl
+		case *ast.TypeSpec:
+			if decl.Doc != nil {
+				return decl.Doc
+			}
+		case *ast.ValueSpec:
+			if decl.Doc != nil {
+				return decl.Doc
+			}
+		case *ast.Ident:
+		default:
+			return nil
+		}
 	}
 	return nil
 }

@@ -8,6 +8,12 @@ package dest
 
 import (
 	"fmt"
+	. "fmt"
+	_ "fmt"
+	renamedfmt "fmt"
+	renamedfmt2 "fmt"
+
+	"domain.name/importdecl"
 )
 
 // init functions are not renamed
@@ -27,5 +33,11 @@ type prefixt int
 const prefixc = 1
 
 func prefixfoo() {
-	fmt.Println()
+	fmt.Println(importdecl.F())
+}
+
+func prefixbaz() {
+	renamedfmt.Println()
+	renamedfmt2.Println()
+	Println()
 }

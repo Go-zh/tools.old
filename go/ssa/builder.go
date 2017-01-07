@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build go1.5
-
 package ssa
 
 // This file implements the BUILD phase of SSA construction.
@@ -2227,13 +2225,13 @@ func (b *builder) buildFuncDecl(pkg *Package, decl *ast.FuncDecl) {
 	b.buildFunction(fn)
 }
 
-// BuildAll calls Package.Build() for each package in prog.
+// Build calls Package.Build for each package in prog.
 // Building occurs in parallel unless the BuildSerially mode flag was set.
 //
-// BuildAll is intended for whole-program analysis; a typical compiler
+// Build is intended for whole-program analysis; a typical compiler
 // need only build a single package.
 //
-// BuildAll is idempotent and thread-safe.
+// Build is idempotent and thread-safe.
 //
 func (prog *Program) Build() {
 	var wg sync.WaitGroup

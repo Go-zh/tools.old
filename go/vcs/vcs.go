@@ -347,7 +347,7 @@ func FromDir(dir, srcRoot string) (vcs *Cmd, root string, err error) {
 	origDir := dir
 	for len(dir) > len(srcRoot) {
 		for _, vcs := range vcsList {
-			if fi, err := os.Stat(filepath.Join(dir, "."+vcs.Cmd)); err == nil && fi.IsDir() {
+			if _, err := os.Stat(filepath.Join(dir, "."+vcs.Cmd)); err == nil {
 				return vcs, filepath.ToSlash(dir[len(srcRoot)+1:]), nil
 			}
 		}
@@ -623,6 +623,15 @@ var vcsPaths = []*vcsPath{
 		vcs:    "bzr",
 		repo:   "https://{root}",
 		check:  launchpadVCS,
+	},
+
+	// Git at OpenStack
+	{
+		prefix: "git.openstack.org",
+		re:     `^(?P<root>git\.openstack\.org/[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+)(\.git)?(/[A-Za-z0-9_.\-]+)*$`,
+		vcs:    "git",
+		repo:   "https://{root}",
+		check:  noVCSSuffix,
 	},
 
 	// General syntax for any server.

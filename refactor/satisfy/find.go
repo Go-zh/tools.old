@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build go1.5
-
 // Package satisfy inspects the type-checked ASTs of Go packages and
 // reports the set of discovered type constraints of the form (lhs, rhs
 // Type) where lhs is a non-trivial interface, rhs satisfies this
@@ -17,7 +15,7 @@
 // since it is computing it anyway, and it is robust for ill-typed
 // inputs, which this package is not.
 //
-package satisfy // import "github.com/Go-zh/tools/refactor/satisfy"
+package satisfy // import "golang.org/x/tools/refactor/satisfy"
 
 // NOTES:
 //
@@ -52,8 +50,8 @@ import (
 	"go/token"
 	"go/types"
 
-	"github.com/Go-zh/tools/go/ast/astutil"
-	"github.com/Go-zh/tools/go/types/typeutil"
+	"golang.org/x/tools/go/ast/astutil"
+	"golang.org/x/tools/go/types/typeutil"
 )
 
 // A Constraint records the fact that the RHS type does and must
@@ -692,7 +690,7 @@ func (f *Finder) stmt(s ast.Stmt) {
 	}
 }
 
-// -- Plundered from github.com/Go-zh/tools/go/ssa -----------------
+// -- Plundered from golang.org/x/tools/go/ssa -----------------
 
 // deref returns a pointer's element type; otherwise it returns typ.
 func deref(typ types.Type) types.Type {

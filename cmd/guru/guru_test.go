@@ -28,7 +28,6 @@ package main_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"go/build"
@@ -41,8 +40,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	guru "github.com/Go-zh/tools/cmd/guru"
@@ -150,51 +151,61 @@ func parseQueries(t *testing.T, filename string) []*query {
 	return queries
 }
 
-// WriteResult writes res (-format=plain) to w, stripping file locations.
-func WriteResult(w io.Writer, q *guru.Query) {
-	capture := new(bytes.Buffer) // capture standard output
-	q.WriteTo(capture)
-	for _, line := range strings.Split(capture.String(), "\n") {
-		// Remove a "file:line: " prefix.
-		if i := strings.Index(line, ": "); i >= 0 {
-			line = line[i+2:]
-		}
-		fmt.Fprintf(w, "%s\n", line)
-	}
-}
-
 // doQuery poses query q to the guru and writes its response and
 // error (if any) to out.
-func doQuery(out io.Writer, q *query, useJson bool) {
+func doQuery(out io.Writer, q *query, json bool) {
 	fmt.Fprintf(out, "-------- @%s %s --------\n", q.verb, q.id)
 
 	var buildContext = build.Default
 	buildContext.GOPATH = "testdata"
 	pkg := filepath.Dir(strings.TrimPrefix(q.filename, "testdata/src/"))
+
+	gopathAbs, _ := filepath.Abs(buildContext.GOPATH)
+
+	var outputMu sync.Mutex // guards outputs
+	var outputs []string    // JSON objects or lines of text
+	outputFn := func(fset *token.FileSet, qr guru.QueryResult) {
+		outputMu.Lock()
+		defer outputMu.Unlock()
+		if json {
+			jsonstr := string(qr.JSON(fset))
+			// Sanitize any absolute filenames that creep in.
+			jsonstr = strings.Replace(jsonstr, gopathAbs, "$GOPATH", -1)
+			outputs = append(outputs, jsonstr)
+		} else {
+			// suppress position information
+			qr.PrintPlain(func(_ interface{}, format string, args ...interface{}) {
+				outputs = append(outputs, fmt.Sprintf(format, args...))
+			})
+		}
+	}
+
 	query := guru.Query{
-		Mode:       q.verb,
 		Pos:        q.queryPos,
 		Build:      &buildContext,
 		Scope:      []string{pkg},
 		Reflection: true,
+		Output:     outputFn,
 	}
-	if err := guru.Run(&query); err != nil {
+
+	if err := guru.Run(q.verb, &query); err != nil {
 		fmt.Fprintf(out, "\nError: %s\n", err)
 		return
 	}
 
-	if useJson {
-		// JSON output
-		b, err := json.MarshalIndent(query.Serial(), "", "\t")
-		if err != nil {
-			fmt.Fprintf(out, "JSON error: %s\n", err.Error())
-			return
-		}
-		out.Write(b)
-		fmt.Fprintln(out)
-	} else {
-		// "plain" (compiler diagnostic format) output
-		WriteResult(out, &query)
+	// In a "referrers" query, references are sorted within each
+	// package but packages are visited in arbitrary order,
+	// so for determinism we sort them.  Line 0 is a caption.
+	if q.verb == "referrers" {
+		sort.Strings(outputs[1:])
+	}
+
+	for _, output := range outputs {
+		fmt.Fprintf(out, "%s\n", output)
+	}
+
+	if !json {
+		io.WriteString(out, "\n")
 	}
 }
 
@@ -219,10 +230,12 @@ func TestGuru(t *testing.T) {
 		"testdata/src/reflection/main.go",
 		"testdata/src/what/main.go",
 		"testdata/src/whicherrs/main.go",
+		"testdata/src/softerrs/main.go",
 		// JSON:
 		// TODO(adonovan): most of these are very similar; combine them.
 		"testdata/src/calls-json/main.go",
 		"testdata/src/peers-json/main.go",
+		"testdata/src/definition-json/main.go",
 		"testdata/src/describe-json/main.go",
 		"testdata/src/implements-json/main.go",
 		"testdata/src/implements-methods-json/main.go",
@@ -230,7 +243,13 @@ func TestGuru(t *testing.T) {
 		"testdata/src/referrers-json/main.go",
 		"testdata/src/what-json/main.go",
 	} {
-		useJson := strings.Contains(filename, "-json/")
+		if filename == "testdata/src/referrers/main.go" && runtime.GOOS == "plan9" {
+			// Disable this test on plan9 since it expects a particular
+			// wording for a "no such file or directory" error.
+			continue
+		}
+
+		json := strings.Contains(filename, "-json/")
 		queries := parseQueries(t, filename)
 		golden := filename + "lden"
 		got := filename + "t"
@@ -245,7 +264,7 @@ func TestGuru(t *testing.T) {
 		// Run the guru on each query, redirecting its output
 		// and error (if any) to the foo.got file.
 		for _, q := range queries {
-			doQuery(gotfh, q, useJson)
+			doQuery(gotfh, q, json)
 		}
 
 		// Compare foo.got with foo.golden.
@@ -277,11 +296,10 @@ func TestIssue14684(t *testing.T) {
 	var buildContext = build.Default
 	buildContext.GOPATH = "testdata"
 	query := guru.Query{
-		Mode:  "freevars",
 		Pos:   "testdata/src/README.txt:#1",
 		Build: &buildContext,
 	}
-	err := guru.Run(&query)
+	err := guru.Run("freevars", &query)
 	if err == nil {
 		t.Fatal("guru query succeeded unexpectedly")
 	}

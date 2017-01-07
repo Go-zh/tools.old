@@ -29,10 +29,9 @@ func what(q *Query) error {
 	if err != nil {
 		return err
 	}
-	q.Fset = qpos.fset
 
 	// (ignore errors)
-	srcdir, importPath, _ := guessImportPath(q.Fset.File(qpos.start).Name(), q.Build)
+	srcdir, importPath, _ := guessImportPath(qpos.fset.File(qpos.start).Name(), q.Build)
 
 	// Determine which query modes are applicable to the selection.
 	enable := map[string]bool{
@@ -118,25 +117,45 @@ func what(q *Query) error {
 	// it uses the best-effort name resolution done by go/parser.
 	var sameids []token.Pos
 	var object string
-	if id, ok := qpos.path[0].(*ast.Ident); ok && id.Obj != nil {
-		object = id.Obj.Name
-		decl := qpos.path[len(qpos.path)-1]
-		ast.Inspect(decl, func(n ast.Node) bool {
-			if n, ok := n.(*ast.Ident); ok && n.Obj == id.Obj {
-				sameids = append(sameids, n.Pos())
+	if id, ok := qpos.path[0].(*ast.Ident); ok {
+		if id.Obj == nil {
+			// An unresolved identifier is potentially a package name.
+			// Resolve them with a simple importer (adds ~100µs).
+			importer := func(imports map[string]*ast.Object, path string) (*ast.Object, error) {
+				pkg, ok := imports[path]
+				if !ok {
+					pkg = &ast.Object{
+						Kind: ast.Pkg,
+						Name: filepath.Base(path), // a guess
+					}
+					imports[path] = pkg
+				}
+				return pkg, nil
 			}
-			return true
-		})
+			f := qpos.path[len(qpos.path)-1].(*ast.File)
+			ast.NewPackage(qpos.fset, map[string]*ast.File{"": f}, importer, nil)
+		}
+
+		if id.Obj != nil {
+			object = id.Obj.Name
+			decl := qpos.path[len(qpos.path)-1]
+			ast.Inspect(decl, func(n ast.Node) bool {
+				if n, ok := n.(*ast.Ident); ok && n.Obj == id.Obj {
+					sameids = append(sameids, n.Pos())
+				}
+				return true
+			})
+		}
 	}
 
-	q.result = &whatResult{
+	q.Output(qpos.fset, &whatResult{
 		path:       qpos.path,
 		srcdir:     srcdir,
 		importPath: importPath,
 		modes:      modes,
 		object:     object,
 		sameids:    sameids,
-	}
+	})
 	return nil
 }
 
@@ -150,11 +169,16 @@ func what(q *Query) error {
 func guessImportPath(filename string, buildContext *build.Context) (srcdir, importPath string, err error) {
 	absFile, err := filepath.Abs(filename)
 	if err != nil {
-		err = fmt.Errorf("can't form absolute path of %s", filename)
-		return
+		return "", "", fmt.Errorf("can't form absolute path of %s: %v", filename, err)
 	}
-	absFileDir := segments(filepath.Dir(absFile))
 
+	absFileDir := filepath.Dir(absFile)
+	resolvedAbsFileDir, err := filepath.EvalSymlinks(absFileDir)
+	if err != nil {
+		return "", "", fmt.Errorf("can't evaluate symlinks of %s: %v", absFileDir, err)
+	}
+
+	segmentedAbsFileDir := segments(resolvedAbsFileDir)
 	// Find the innermost directory in $GOPATH that encloses filename.
 	minD := 1024
 	for _, gopathDir := range buildContext.SrcDirs() {
@@ -162,14 +186,19 @@ func guessImportPath(filename string, buildContext *build.Context) (srcdir, impo
 		if err != nil {
 			continue // e.g. non-existent dir on $GOPATH
 		}
-		d := prefixLen(segments(absDir), absFileDir)
+		resolvedAbsDir, err := filepath.EvalSymlinks(absDir)
+		if err != nil {
+			continue // e.g. non-existent dir on $GOPATH
+		}
+
+		d := prefixLen(segments(resolvedAbsDir), segmentedAbsFileDir)
 		// If there are multiple matches,
 		// prefer the innermost enclosing directory
 		// (smallest d).
 		if d >= 0 && d < minD {
 			minD = d
 			srcdir = gopathDir
-			importPath = strings.Join(absFileDir[len(absFileDir)-minD:], string(os.PathSeparator))
+			importPath = strings.Join(segmentedAbsFileDir[len(segmentedAbsFileDir)-minD:], string(os.PathSeparator))
 		}
 	}
 	if srcdir == "" {
@@ -211,7 +240,7 @@ type whatResult struct {
 	sameids    []token.Pos
 }
 
-func (r *whatResult) display(printf printfFunc) {
+func (r *whatResult) PrintPlain(printf printfFunc) {
 	for _, n := range r.path {
 		printf(n, "%s", astutil.NodeDescription(n))
 	}
@@ -223,7 +252,7 @@ func (r *whatResult) display(printf printfFunc) {
 	}
 }
 
-func (r *whatResult) toSerial(res *serial.Result, fset *token.FileSet) {
+func (r *whatResult) JSON(fset *token.FileSet) []byte {
 	var enclosing []serial.SyntaxNode
 	for _, n := range r.path {
 		enclosing = append(enclosing, serial.SyntaxNode{
@@ -238,12 +267,12 @@ func (r *whatResult) toSerial(res *serial.Result, fset *token.FileSet) {
 		sameids = append(sameids, fset.Position(pos).String())
 	}
 
-	res.What = &serial.What{
+	return toJSON(&serial.What{
 		Modes:      r.modes,
 		SrcDir:     r.srcdir,
 		ImportPath: r.importPath,
 		Enclosing:  enclosing,
 		Object:     r.object,
 		SameIDs:    sameids,
-	}
+	})
 }

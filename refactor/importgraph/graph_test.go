@@ -13,12 +13,12 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/Go-zh/tools/refactor/importgraph"
+	"golang.org/x/tools/refactor/importgraph"
 
 	_ "crypto/hmac" // just for test, below
 )
 
-const this = "github.com/Go-zh/tools/refactor/importgraph"
+const this = "golang.org/x/tools/refactor/importgraph"
 
 func TestBuild(t *testing.T) {
 	forward, reverse, errors := importgraph.Build(&build.Default)
