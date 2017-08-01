@@ -261,7 +261,7 @@ func checkGitCodeReview() {
 				"almost all Go contributors use it. Our documentation and this tool assume it is used.\n" +
 				"To install it, run:\n\n\t$ go get golang.org/x/review/git-codereview\n\n(Then run go-contrib-init again)")
 		}
-		err := exec.Command("go", "get", "golang.org/x/review/git-codereview").Run()
+		err := exec.Command("go", "get", "github.com/Go-zh/review/git-codereview").Run()
 		if err != nil {
 			log.Fatalf("Error running go get golang.org/x/review/git-codereview: %v", cmdErr(err))
 		}

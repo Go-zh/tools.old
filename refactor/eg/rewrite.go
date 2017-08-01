@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/tools/go/ast/astutil"
+	"github.com/Go-zh/tools/go/ast/astutil"
 )
 
 // Transform applies the transformation to the specified parsed file,

@@ -35,7 +35,7 @@ var index = `<!DOCTYPE html>
 `
 
 func toolsDir() string {
-	p, err := build.Import("golang.org/x/tools", "", build.FindOnly)
+	p, err := build.Import("github.com/Go-zh/tools", "", build.FindOnly)
 	if err != nil {
 		log.Println("error: can't find client files:", err)
 		os.Exit(1)

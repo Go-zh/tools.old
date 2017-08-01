@@ -47,9 +47,9 @@ func TestContainingPackage(t *testing.T) {
 			t.Fatal(err)
 		}
 		tests = append(tests, []Test{
-			{gopath, tmp + "/src/golang.org/x/tools/go/buildutil/util_test.go", "golang.org/x/tools/go/buildutil"},
-			{tmp, gopath + "/src/golang.org/x/tools/go/buildutil/util_test.go", "golang.org/x/tools/go/buildutil"},
-			{tmp, tmp + "/src/golang.org/x/tools/go/buildutil/util_test.go", "golang.org/x/tools/go/buildutil"},
+			{gopath, tmp + "/src/golang.org/x/tools/go/buildutil/util_test.go", "github.com/Go-zh/tools/go/buildutil"},
+			{tmp, gopath + "/src/golang.org/x/tools/go/buildutil/util_test.go", "github.com/Go-zh/tools/go/buildutil"},
+			{tmp, tmp + "/src/golang.org/x/tools/go/buildutil/util_test.go", "github.com/Go-zh/tools/go/buildutil"},
 		}...)
 	}
 

@@ -1173,7 +1173,7 @@ func TestFindImportVendor(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := "golang.org/x/net/http2/hpack"
+		want := "github.com/Go-zh/net/http2/hpack"
 		if got != want || rename {
 			t.Errorf(`findImportGoPath("hpack", HuffmanDecode ...) = %q, %t; want %q, false`, got, rename, want)
 		}
@@ -1196,7 +1196,7 @@ func TestProcessVendor(t *testing.T) {
 
 		want := "golang_org/x/net/http2/hpack"
 		if _, err := os.Stat(filepath.Join(runtime.GOROOT(), "src/vendor", want)); os.IsNotExist(err) {
-			want = "golang.org/x/net/http2/hpack"
+			want = "github.com/Go-zh/net/http2/hpack"
 		}
 
 		if !bytes.Contains(out, []byte(want)) {

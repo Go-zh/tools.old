@@ -22,8 +22,8 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/http2"
+	"github.com/Go-zh/crypto/acme/autocert"
+	"github.com/Go-zh/net/http2"
 )
 
 var (

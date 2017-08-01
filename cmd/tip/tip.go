@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/acme/autocert"
+	"github.com/Go-zh/crypto/acme/autocert"
 )
 
 const (
