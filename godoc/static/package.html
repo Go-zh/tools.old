@@ -118,9 +118,9 @@
 		{{if $.Examples}}
 		<div id="pkg-examples">
 <!--
-			<h4>Examples</h4>
+			<h3>Examples</h3>
 -->
-			<h4>示例</h4>
+			<h3>示例</h3>
 			<dl>
 			{{range $.Examples}}
 			<dd><a class="exampleLink" href="#example_{{.Name}}">{{example_name .Name}}</a></dd>
@@ -131,9 +131,9 @@
 
 		{{with .Filenames}}
 <!--
-			<h4>Package files</h4>
+			<h3>Package files</h3>
 -->
-			<h4>包文件</h4>
+			<h3>包文件</h3>
 			<p>
 			<span style="font-size:90%">
 			{{range .}}
@@ -329,7 +329,7 @@
 		<h2 id="stdlib">Standard library</h2>
 -->
 		<h2 id="stdlib">标准库</h2>
-		<img class="gopher" src="/doc/gopher/pkg.png"/>
+		<img alt="" class="gopher" src="/doc/gopher/pkg.png"/>
 	{{end}}
 
 
