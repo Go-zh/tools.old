@@ -76,7 +76,7 @@ makeAppYaml() {
 application: zh-golang
 version: go14
 runtime: go
-api_version: go1.4beta
+api_version: go1
 
 handlers:
 - url: /.*
