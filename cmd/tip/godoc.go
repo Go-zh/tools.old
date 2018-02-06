@@ -36,6 +36,7 @@ func (b godocBuilder) Init(dir, hostport string, heads map[string]string) (*exec
 		return nil, err
 	}
 	goBin := filepath.Join(goDir, "bin/go")
+	goPath := filepath.Join(dir, "gopath")
 	install := exec.Command(goBin, "install", "github.com/Go-zh/tools/cmd/godoc")
 	install.Env = []string{
 		"GOROOT=" + goDir,
