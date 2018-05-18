@@ -75,6 +75,7 @@ var (
 	// layout control
 	html    = flag.Bool("html", false, "print HTML in command-line mode")
 	srcMode = flag.Bool("src", false, "print (exported) source in command-line mode")
+	allMode = flag.Bool("all", false, "include unexported identifiers in command-line mode")
 	urlFlag = flag.String("url", "", "print HTML for named URL")
 
 	// command-line searches
@@ -167,6 +168,10 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
+	if certInit != nil {
+		certInit()
+	}
+
 	playEnabled = *showPlayground
 
 	// Check usage: server and no args.
@@ -256,6 +261,7 @@ func main() {
 	pres.DeclLinks = *declLinks
 	pres.SrcMode = *srcMode
 	pres.HTMLMode = *html
+	pres.AllMode = *allMode
 	if *notesRx != "" {
 		pres.NotesRx = regexp.MustCompile(*notesRx)
 	}
@@ -326,9 +332,9 @@ func main() {
 			go analysis.Run(pointerAnalysis, &corpus.Analysis)
 		}
 
-		if serveAutoCertHook != nil {
+		if runHTTPS != nil {
 			go func() {
-				if err := serveAutoCertHook(handler); err != nil {
+				if err := runHTTPS(handler); err != nil {
 					log.Fatalf("ListenAndServe TLS: %v", err)
 				}
 			}()
@@ -336,7 +342,10 @@ func main() {
 
 		// Start http server.
 		if *verbose {
-			log.Println("starting http server")
+			log.Println("starting HTTP server")
+		}
+		if wrapHTTPMux != nil {
+			handler = wrapHTTPMux(handler)
 		}
 		if err := http.ListenAndServe(*httpAddr, handler); err != nil {
 			log.Fatalf("ListenAndServe %s: %v", *httpAddr, err)
@@ -350,11 +359,16 @@ func main() {
 		return
 	}
 
+	build.Default.GOROOT = *goroot
 	if err := godoc.CommandLine(os.Stdout, fs, pres, flag.Args()); err != nil {
 		log.Print(err)
 	}
 }
 
-// serveAutoCertHook if non-nil specifies a function to listen on port 443.
-// See autocert.go.
-var serveAutoCertHook func(http.Handler) error
+// Hooks that are set non-nil in autocert.go if the "autocert" build tag
+// is used.
+var (
+	certInit    func()
+	runHTTPS    func(http.Handler) error
+	wrapHTTPMux func(http.Handler) http.Handler
+)

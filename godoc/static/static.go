@@ -535,7 +535,16 @@ var Files = map[string]string{
 <link rel="search" type="application/opensearchdescription+xml" title="godoc" href="/opensearch.xml" />
 {{end}}
 <link rel="stylesheet" href="/lib/godoc/jquery.treeview.css">
-<script type="text/javascript">window.initFuncs = [];</script>
+<script>window.initFuncs = [];</script>
+<script src="/lib/godoc/jquery.js" defer></script>
+<script src="/lib/godoc/jquery.treeview.js" defer></script>
+<script src="/lib/godoc/jquery.treeview.edit.js" defer></script>
+
+{{if .Playground}}
+<script src="/lib/godoc/playground.js" defer></script>
+{{end}}
+{{with .Version}}<script>var goVersion = {{printf "%q" .}};</script>{{end}}
+<script src="/lib/godoc/godocs.js" defer></script>
 </head>
 <body>
 
@@ -654,18 +663,6 @@ and code is licensed under a <a href="/LICENSE">BSD license</a>.<br>
 
 </div><!-- .container -->
 </div><!-- #page -->
-
-<!-- TODO(adonovan): load these from <head> using "defer" attribute? -->
-<script type="text/javascript" src="/lib/godoc/jquery.js"></script>
-<script type="text/javascript" src="/lib/godoc/jquery.treeview.js"></script>
-<script type="text/javascript" src="/lib/godoc/jquery.treeview.edit.js"></script>
-
-{{if .Playground}}
-<script type="text/javascript" src="/lib/godoc/playground.js"></script>
-{{end}}
-{{with .Version}}<script>var goVersion = {{printf "%q" .}};</script>{{end}}
-<script type="text/javascript" src="/lib/godoc/godocs.js"></script>
-
 </body>
 </html>
 
@@ -1811,9 +1808,9 @@ function cgAddChild(tree, ul, cgn) {
 -->
 				<h2 class="toggleButton" title="点此隐藏概览">概览 ▾</h2>
 				{{comment_html .Doc}}
+				{{example_html $ ""}}
 			</div>
 		</div>
-		{{example_html $ ""}}
 
 		<div id="pkg-index" class="toggleVisible">
 		<div class="collapsed">
@@ -2060,75 +2057,197 @@ function cgAddChild(tree, ul, cgn) {
 <!--
 		<h2 id="pkg-subdirectories">Subdirectories</h2>
 -->
-	{{end}}
 		<h2 id="pkg-subdirectories">子目录</h2>
-	{{if eq $.Dirname "/src"}}
-		<div id="manual-nav">
-			<dl>
-<!--
-				<dt><a href="#stdlib">Standard library</a></dt>
-				<dt><a href="#other">Other packages</a></dt>
-				<dd><a href="#subrepo">Sub-repositories</a></dd>
-				<dd><a href="#community">Community</a></dd>
--->
-				<dt><a href="#stdlib">标准库</a></dt>
-				<dt><a href="#other">其它包</a></dt>
-				<dd><a href="#subrepo">子代码库</a></dd>
-				<dd><a href="#community">社区</a></dd>
-			</dl>
-		</div>
-<!--
-		<h2 id="stdlib">Standard library</h2>
--->
-		<h2 id="stdlib">标准库</h2>
-		<img alt="" class="gopher" src="/doc/gopher/pkg.png"/>
 	{{end}}
-
-
 	<div class="pkg-dir">
 		<table>
 			<tr>
+<!--
 				<th class="pkg-name">Name</th>
 				<th class="pkg-synopsis">Synopsis</th>
+-->
+				<th class="pkg-name">包名</th>
+				<th class="pkg-synopsis">概述</th>
 			</tr>
 
-			{{if not (or (eq $.Dirname "/src") (eq $.Dirname "/src/cmd") $.DirFlat)}}
+			{{if not ((eq $.Dirname "/src/cmd") $.DirFlat)}}
 			<tr>
 				<td colspan="2"><a href="..">..</a></td>
 			</tr>
 			{{end}}
 
 			{{range .List}}
+				<tr>
 				{{if $.DirFlat}}
 					{{if .HasPkg}}
-						<tr>
-							<td class="pkg-name">
-								<a href="{{html .Path}}/{{modeQueryString $.Mode | html}}">{{html .Path}}</a>
-							</td>
-							<td class="pkg-synopsis">
-								{{html .Synopsis}}
-							</td>
-						</tr>
+						<td class="pkg-name">
+							<a href="{{html .Path}}/{{modeQueryString $.Mode | html}}">{{html .Path}}</a>
+						</td>
 					{{end}}
 				{{else}}
-					<tr>
-						<td class="pkg-name" style="padding-left: {{multiply .Depth 20}}px;">
-							<a href="{{html .Path}}/{{modeQueryString $.Mode | html}}">{{html .Name}}</a>
-						</td>
-						<td class="pkg-synopsis">
-							{{html .Synopsis}}
-						</td>
-					</tr>
+					<td class="pkg-name" style="padding-left: {{multiply .Depth 20}}px;">
+						<a href="{{html .Path}}/{{modeQueryString $.Mode | html}}">{{html .Name}}</a>
+					</td>
 				{{end}}
+					<td class="pkg-synopsis">
+						{{html .Synopsis}}
+					</td>
+				</tr>
 			{{end}}
 		</table>
 	</div>
+{{end}}
+`,
 
+	"packageroot.html": `<!--
+	Copyright 2018 The Go Authors. All rights reserved.
+	Use of this source code is governed by a BSD-style
+	license that can be found in the LICENSE file.
+-->
+<!--
+	Note: Static (i.e., not template-generated) href and id
+	attributes start with "pkg-" to make it impossible for
+	them to conflict with generated attributes (some of which
+	correspond to Go identifiers).
+-->
+{{with .PAst}}
+	{{range $filename, $ast := .}}
+		<a href="{{$filename|srcLink|html}}">{{$filename|filename|html}}</a>:<pre>{{node_html $ $ast false}}</pre>
+	{{end}}
+{{end}}
 
-	{{if eq $.Dirname "/src"}}
+{{with .Dirs}}
+	{{/* DirList entries are numbers and strings - no need for FSet */}}
+	{{if $.PDoc}}
+<!--
+		<h2 id="pkg-subdirectories">Subdirectories</h2>
+-->
+		<h2 id="pkg-subdirectories">子目录</h2>
+	{{end}}
+		<div id="manual-nav">
+			<dl>
+<!--
+				<dt><a href="#stdlib">Standard library</a></dt>
+-->
+				<dt><a href="#stdlib">标准库</a></dt>
+				{{if hasThirdParty .List }}
+<!--
+					<dt><a href="#thirdparty">Third party</a></dt>
+-->
+					<dt><a href="#thirdparty">第三方库</a></dt>
+				{{end}}
+<!--
+				<dt><a href="#other">Other packages</a></dt>
+				<dd><a href="#subrepo">Sub-repositories</a></dd>
+				<dd><a href="#community">Community</a></dd>
+-->
+				<dt><a href="#other">其它包</a></dt>
+				<dd><a href="#subrepo">子代码库</a></dd>
+				<dd><a href="#community">社区</a></dd>
+			</dl>
+		</div>
+
+		<div id="stdlib" class="toggleVisible">
+			<div class="collapsed">
+<!--
+				<h2 class="toggleButton" title="Click to show Standard library section">Standard library ▹</h2>
+-->
+				<h2 class="toggleButton" title="点此显示标准库">标准库 ▹</h2>
+			</div>
+			<div class="expanded">
+<!--
+				<h2 class="toggleButton" title="Click to hide Standard library section">Standard library ▾</h2>
+-->
+				<h2 class="toggleButton" title="点此隐藏标准库">标准库 ▾</h2>
+				<img alt="" class="gopher" src="/doc/gopher/pkg.png"/>
+				<div class="pkg-dir">
+					<table>
+						<tr>
+<!--
+							<th class="pkg-name">Name</th>
+							<th class="pkg-synopsis">Synopsis</th>
+-->
+							<th class="pkg-name">包名</th>
+							<th class="pkg-synopsis">概述</th>
+						</tr>
+
+						{{range .List}}
+							<tr>
+							{{if eq .RootType "GOROOT"}}
+							{{if $.DirFlat}}
+								{{if .HasPkg}}
+										<td class="pkg-name">
+											<a href="{{html .Path}}/{{modeQueryString $.Mode | html}}">{{html .Path}}</a>
+										</td>
+								{{end}}
+							{{else}}
+									<td class="pkg-name" style="padding-left: {{multiply .Depth 20}}px;">
+										<a href="{{html .Path}}/{{modeQueryString $.Mode | html}}">{{html .Name}}</a>
+									</td>
+							{{end}}
+								<td class="pkg-synopsis">
+									{{html .Synopsis}}
+								</td>
+							{{end}}
+							</tr>
+						{{end}}
+					</table>
+				</div> <!-- .pkg-dir -->
+			</div> <!-- .expanded -->
+		</div> <!-- #stdlib .toggleVisible -->
+
+	{{if hasThirdParty .List }}
+		<div id="thirdparty" class="toggleVisible">
+			<div class="collapsed">
+<!--
+				<h2 class="toggleButton" title="Click to show Third party section">Third party ▹</h2>
+-->
+				<h2 class="toggleButton" title="点此显示第三方库">第三方库 ▹</h2>
+			</div>
+			<div class="expanded">
+<!--
+				<h2 class="toggleButton" title="Click to hide Third party section">Third party ▾</h2>
+-->
+				<h2 class="toggleButton" title="点此隐藏第三方库">第三方库 ▾</h2>
+				<div class="pkg-dir">
+					<table>
+						<tr>
+<!--
+							<th class="pkg-name">Name</th>
+							<th class="pkg-synopsis">Synopsis</th>
+-->
+							<th class="pkg-name">包名</th>
+							<th class="pkg-synopsis">概述</th>
+						</tr>
+
+						{{range .List}}
+							<tr>
+								{{if eq .RootType "GOPATH"}}
+								{{if $.DirFlat}}
+									{{if .HasPkg}}
+											<td class="pkg-name">
+												<a href="{{html .Path}}/{{modeQueryString $.Mode | html}}">{{html .Path}}</a>
+											</td>
+									{{end}}
+								{{else}}
+										<td class="pkg-name" style="padding-left: {{multiply .Depth 20}}px;">
+											<a href="{{html .Path}}/{{modeQueryString $.Mode | html}}">{{html .Name}}</a>
+										</td>
+								{{end}}
+									<td class="pkg-synopsis">
+										{{html .Synopsis}}
+									</td>
+								{{end}}
+							</tr>
+						{{end}}
+					</table>
+				</div> <!-- .pkg-dir -->
+			</div> <!-- .expanded -->
+		</div> <!-- #stdlib .toggleVisible -->
+	{{end}}
+
 <!--
 	<h2 id="other">Other packages</h2>
-
 	<h3 id="subrepo">Sub-repositories</h3>
 	<p>
 	These packages are part of the Go Project but outside the main Go tree.
@@ -2144,8 +2263,12 @@ function cgAddChild(tree, ul, cgn) {
 		<li><a href="//godoc.org/golang.org/x/image">image</a> — additional imaging packages.</li>
 		<li><a href="//godoc.org/golang.org/x/mobile">mobile</a> — experimental support for Go on mobile platforms.</li>
 		<li><a href="//godoc.org/golang.org/x/net">net</a> — additional networking packages.</li>
+		<li><a href="//godoc.org/golang.org/x/perf">perf</a> — packages and tools for performance measurement, storage, and analysis.</li>
+		<li><a href="//godoc.org/golang.org/x/review">review</a> — a tool for working with Gerrit code reviews.</li>
+		<li><a href="//godoc.org/golang.org/x/sync">sync</a> — additional concurrency primitives.</li>
 		<li><a href="//godoc.org/golang.org/x/sys">sys</a> — packages for making system calls.</li>
 		<li><a href="//godoc.org/golang.org/x/text">text</a> — packages for working with text.</li>
+		<li><a href="//godoc.org/golang.org/x/time">time</a> — additional time packages.</li>
 		<li><a href="//godoc.org/golang.org/x/tools">tools</a> — godoc, goimports, gorename, and other tools.</li>
 		<li><a href="//godoc.org/golang.org/x/tour">tour</a> — <a href="//tour.golang.org">tour.golang.org</a>'s implementation.</li>
 		<li><a href="//godoc.org/golang.org/x/exp">exp</a> — experimental and deprecated packages (handle with care; may change without warning).</li>
@@ -2161,22 +2284,33 @@ function cgAddChild(tree, ul, cgn) {
 		<li><a href="/wiki/Projects">Projects at the Go Wiki</a> - a curated list of Go projects.</li>
 	</ul>
 -->
+
 	<h2 id="other">其它包</h2>
 
-	<h3 id="subrepo">字代码库</h3>
+	<h3 id="subrepo">子代码库</h3>
 	<p>
-	这些包是 Go 项目的一部分，但并未在主源码树中。它们在比 Go
-	核心库更加宽松的<a href="/doc/go1compat">兼容性需求</a>下开发。
-	可通过“<a href="/cmd/go/#hdr-Download_and_install_packages_and_dependencies">go get</a>”安装它们.
+	这些包是 Go 项目的一部分，但并不在主源码树中。它们在比 Go
+	核心库更加宽松的<a href="/doc/go1compat">兼容性要求</a>下开发。
+	它们可通过“<a href="/cmd/go/#hdr-Download_and_install_packages_and_dependencies">go get</a>”安装。
 	</p>
 	<ul>
-		<li><a href="//godoc.org/golang.org/x/go.crypto">crypto</a> — 附加的加密包。</li>
-		<li><a href="//godoc.org/golang.org/x/go.image">image</a> — 附加的图像包。</li>
-		<li><a href="//godoc.org/golang.org/x/go.net">net</a> — 附加的网络包。</li>
-		<li><a href="//godoc.org/golang.org/x/go.sys">sys</a> — 系统调用包。</li>
-		<li><a href="//godoc.org/golang.org/x/go.text">text</a> — 文本处理包。</li>
-		<li><a href="//godoc.org/golang.org/x/go.tools">tools</a> — godoc、vet、cover 及其它工具。</li>
-		<li><a href="//godoc.org/golang.org/x/go.exp">exp</a> — 实验性代码（可能不经警告就更改，请小心对待）。</li>
+		<li><a href="//godoc.org/golang.org/x/benchmarks">benchmarks</a> — 随着 Go 一同开发的基准测试。</li>
+		<li><a href="//godoc.org/golang.org/x/blog">blog</a> — <a href="//blog.golang.org">blog.golang.org</a> 的实现。</li>
+		<li><a href="//godoc.org/golang.org/x/build">build</a> — <a href="//build.golang.org">build.golang.org</a> 的实现。</li>
+		<li><a href="//godoc.org/golang.org/x/crypto">crypto</a> — 附加的加密包。</li>
+		<li><a href="//godoc.org/golang.org/x/debug">debug</a> — Go 的实验性调试器。</li>
+		<li><a href="//godoc.org/golang.org/x/image">image</a> — 附加的图像包。</li>
+		<li><a href="//godoc.org/golang.org/x/mobile">mobile</a> — Go 在移动平台上的实验性支持。</li>
+		<li><a href="//godoc.org/golang.org/x/net">net</a> — 附加的网络包。</li>
+		<li><a href="//godoc.org/golang.org/x/perf">perf</a> — 用于性能测量、存储和分析的包与工具。</li>
+		<li><a href="//godoc.org/golang.org/x/review">review</a> — 协助 Gerrit 代码审校的工具。</li>
+		<li><a href="//godoc.org/golang.org/x/sync">sync</a> — 附加的并发原语。</li>
+		<li><a href="//godoc.org/golang.org/x/sys">sys</a> — 系统调用包。</li>
+		<li><a href="//godoc.org/golang.org/x/text">text</a> — 文本处理包。</li>
+		<li><a href="//godoc.org/golang.org/x/time">time</a> — 附加的时间处理包。</li>
+		<li><a href="//godoc.org/golang.org/x/tools">tools</a> — godoc、goimports、gorename 以及其它工具。</li>
+		<li><a href="//godoc.org/golang.org/x/tour">tour</a> — <a href="//tour.golang.org">tour.golang.org</a> 的实现。</li>
+		<li><a href="//godoc.org/golang.org/x/exp">exp</a> — 实验性的和已弃用的包（可能不经警告就更改，请小心对待）。</li>
 	</ul>
 
 	<h3 id="community">社区</h3>
@@ -2188,7 +2322,6 @@ function cgAddChild(tree, ul, cgn) {
 		<li><a href="http://go-search.org">Go 搜索</a> - 代码搜索引擎。</li>
 		<li><a href="/wiki/Projects">Go 维基上的项目</a> - Go 项目策划列表</li>
 	</ul>
-	{{end}}
 {{end}}
 `,
 
@@ -2468,10 +2601,11 @@ here's a skeleton implementation of a playground transport.
         }
 */
 
-function HTTPTransport() {
+// HTTPTransport is the default transport.
+// enableVet enables running vet if a program was compiled and ran successfully.
+// If vet returned any errors, display them before the output of a program.
+function HTTPTransport(enableVet) {
 	'use strict';
-
-	// TODO(adg): support stderr
 
 	function playback(output, events) {
 		var timeout;
@@ -2483,12 +2617,12 @@ function HTTPTransport() {
 			}
 			var e = events.shift();
 			if (e.Delay === 0) {
-				output({Kind: 'stdout', Body: e.Message});
+				output({Kind: e.Kind, Body: e.Message});
 				next();
 				return;
 			}
 			timeout = setTimeout(function() {
-				output({Kind: 'stdout', Body: e.Message});
+				output({Kind: e.Kind, Body: e.Message});
 				next();
 			}, e.Delay / 1000000);
 		}
@@ -2497,7 +2631,7 @@ function HTTPTransport() {
 			Stop: function() {
 				clearTimeout(timeout);
 			}
-		}
+		};
 	}
 
 	function error(output, msg) {
@@ -2524,7 +2658,28 @@ function HTTPTransport() {
 						error(output, data.Errors);
 						return;
 					}
-					playing = playback(output, data.Events);
+
+					if (!enableVet) {
+						playing = playback(output, data.Events);
+						return;
+					}
+
+					$.ajax("/vet", {
+						data: {"body": body},
+						type: "POST",
+						dataType: "json",
+						success: function(dataVet) {
+							if (dataVet.Errors) {
+								// inject errors from the vet as the first event in the output
+								data.Events.unshift({Message: 'Go vet exited.\n\n', Kind: 'system', Delay: 0});
+								data.Events.unshift({Message: dataVet.Errors, Kind: 'stderr', Delay: 0});
+							}
+							playing = playback(output, data.Events);
+						},
+						error: function() {
+							playing = playback(output, data.Events);
+						}
+					});
 				},
 				error: function() {
 					error(output, 'Error communicating with remote server.');
@@ -2546,11 +2701,16 @@ function SocketTransport() {
 	var id = 0;
 	var outputs = {};
 	var started = {};
-	var websocket = new WebSocket('ws://' + window.location.host + '/socket');
+	var websocket;
+	if (window.location.protocol == "http:") {
+		websocket = new WebSocket('ws://' + window.location.host + '/socket');
+	} else if (window.location.protocol == "https:") {
+		websocket = new WebSocket('wss://' + window.location.host + '/socket');
+	}
 
 	websocket.onclose = function() {
 		console.log('websocket connection closed');
-	}
+	};
 
 	websocket.onmessage = function(e) {
 		var m = JSON.parse(e.data);
@@ -2562,7 +2722,7 @@ function SocketTransport() {
 			started[m.Id] = true;
 		}
 		output({Kind: m.Kind, Body: m.Body});
-	}
+	};
 
 	function send(m) {
 		websocket.send(JSON.stringify(m));
@@ -2630,7 +2790,7 @@ function PlaygroundOutput(el) {
 
 		if (needScroll)
 			el.scrollTop = el.scrollHeight - el.offsetHeight;
-	}
+	};
 }
 
 (function() {
@@ -2646,7 +2806,7 @@ function PlaygroundOutput(el) {
     return function(write) {
       if (write.Body) lineHighlight(write.Body);
       wrappedOutput(write);
-    }
+    };
   }
   function lineClear() {
     $(".lineerror").removeClass("lineerror");
@@ -2665,9 +2825,10 @@ function PlaygroundOutput(el) {
   //  enableHistory - enable using HTML5 history API (optional)
   //  transport - playground transport to use (default is HTTPTransport)
   //  enableShortcuts - whether to enable shortcuts (Ctrl+S/Cmd+S to save) (default is false)
+  //  enableVet - enable running vet and displaying its errors
   function playground(opts) {
     var code = $(opts.codeEl);
-    var transport = opts['transport'] || new HTTPTransport();
+    var transport = opts['transport'] || new HTTPTransport(opts['enableVet']);
     var running;
 
     // autoindent helpers.
@@ -3135,17 +3296,18 @@ function PlaygroundOutput(el) {
 	"style.css": `body {
 	margin: 0;
 	font-family: Arial, sans-serif;
-	font-size: 16px;
 	background-color: #fff;
-	line-height: 1.3em;
+	line-height: 1.3;
+	text-align: center;
+	color: #222;
 }
 pre,
 code {
 	font-family: Menlo, monospace;
-	font-size: 14px;
+	font-size: 0.875rem;
 }
 pre {
-	line-height: 1.4em;
+	line-height: 1.4;
 	overflow-x: auto;
 }
 pre .comment {
@@ -3171,14 +3333,7 @@ pre .ln {
 	-ms-user-select: none;
 	user-select: none;
 }
-.ln::before {
-	/* Inserting the line numbers as a ::before pseudo-element avoids making
-	 * them selectable; it's the trick Github uses as well. */
-	content: attr(data-content);
-}
-body {
-	color: #222;
-}
+
 a,
 .exampleHeading .text {
 	color: #375EAB;
@@ -3203,22 +3358,19 @@ a:hover,
 }
 
 p, li {
-	max-width: 800px;
+	max-width: 50rem;
 	word-wrap: break-word;
 }
 p,
 pre,
 ul,
 ol {
-	margin: 20px;
+	margin: 1.25rem;
 }
 pre {
 	background: #EFEFEF;
-	padding: 10px;
-
-	-webkit-border-radius: 5px;
-	-moz-border-radius: 5px;
-	border-radius: 5px;
+	padding: 0.625rem;
+	border-radius: 0.3125rem;
 }
 
 h1,
@@ -3226,22 +3378,22 @@ h2,
 h3,
 h4,
 .rootHeading {
-	margin: 20px 0 20px;
+	margin: 1.25rem 0 1.25rem;
 	padding: 0;
 	color: #375EAB;
 	font-weight: bold;
 }
 h1 {
-	font-size: 28px;
+	font-size: 1.75rem;
 	line-height: 1;
 }
 h1 .text-muted {
 	color:#777;
 }
 h2 {
-	font-size: 20px;
+	font-size: 1.25rem;
 	background: #E0EBF5;
-	padding: 8px;
+	padding: 0.5rem;
 	line-height: 1.25;
 	font-weight: normal;
 }
@@ -3249,47 +3401,46 @@ h2 a {
 	font-weight: bold;
 }
 h3 {
-	font-size: 20px;
+	font-size: 1.25rem;
 }
 h3,
 h4 {
-	margin: 20px 5px;
+	margin: 1.25rem 0.3125rem;
 }
 h4 {
-	font-size: 16px;
+	font-size: 1rem;
 }
 .rootHeading {
-	font-size: 20px;
+	font-size: 1.25rem;
 	margin: 0;
 }
 
 dl {
-	margin: 20px;
+	margin: 1.25rem;
 }
 dd {
-	margin: 0 0 0 20px;
+	margin: 0 0 0 1.25rem;
 }
 dl,
 dd {
-	font-size: 14px;
+	font-size: 0.875rem;
 }
 div#nav table td {
 	vertical-align: top;
 }
 
-
 #pkg-index h3 {
-	font-size: 16px;
+	font-size: 1rem;
 }
 .pkg-dir {
-	padding: 0 10px;
+	padding: 0 0.625rem;
 }
 .pkg-dir table {
 	border-collapse: collapse;
 	border-spacing: 0;
 }
 .pkg-name {
-	padding-right: 10px;
+	padding-right: 0.625rem;
 }
 .alert {
 	color: #AA0000;
@@ -3297,8 +3448,8 @@ div#nav table td {
 
 .top-heading {
 	float: left;
-	padding: 21px 0;
-	font-size: 20px;
+	padding: 1.313rem 0;
+	font-size: 1.25rem;
 	font-weight: normal;
 }
 .top-heading a {
@@ -3308,13 +3459,10 @@ div#nav table td {
 
 div#topbar {
 	background: #E0EBF5;
-	height: 64px;
+	height: 4rem;
 	overflow: hidden;
 }
 
-body {
-	text-align: center;
-}
 div#page {
 	width: 100%;
 }
@@ -3323,11 +3471,11 @@ div#topbar > .container {
 	text-align: left;
 	margin-left: auto;
 	margin-right: auto;
-	padding: 0 20px;
+	padding: 0 1.25rem;
 }
 div#topbar > .container,
 div#page > .container {
-	max-width: 950px;
+	max-width: 59.38rem;
 }
 div#page.wide > .container,
 div#topbar.wide > .container {
@@ -3336,14 +3484,14 @@ div#topbar.wide > .container {
 div#plusone {
 	float: right;
 	clear: right;
-	margin-top: 5px;
+	margin-top: 0.3125rem;
 }
 
 div#footer {
 	text-align: center;
 	color: #666;
-	font-size: 14px;
-	margin: 40px 0;
+	font-size: 0.875rem;
+	margin: 2.5rem 0;
 }
 
 div#menu > a,
@@ -3352,20 +3500,17 @@ div#learn .buttons a,
 div.play .buttons a,
 div#blog .read a,
 #menu-button {
-	padding: 10px;
+	padding: 0.625rem;
 
 	text-decoration: none;
-	font-size: 16px;
-
-	-webkit-border-radius: 5px;
-	-moz-border-radius: 5px;
-	border-radius: 5px;
+	font-size: 1rem;
+	border-radius: 0.3125rem;
 }
 div#playground .buttons a,
 div#menu > a,
 input#search,
 #menu-button {
-	border: 1px solid #375EAB;
+	border: 0.0625rem solid #375EAB;
 }
 div#playground .buttons a,
 div#menu > a,
@@ -3382,16 +3527,16 @@ div#learn .buttons a,
 div.play .buttons a,
 div#blog .read a {
 	color: #222;
-	border: 1px solid #375EAB;
+	border: 0.0625rem solid #375EAB;
 	background: #E0EBF5;
 }
 .download {
-	width: 150px;
+	width: 9.375rem;
 }
 
 div#menu {
 	text-align: right;
-	padding: 10px;
+	padding: 0.625rem;
 	white-space: nowrap;
 	max-height: 0;
 	-moz-transition: max-height .25s linear;
@@ -3399,12 +3544,12 @@ div#menu {
 	width: 100%;
 }
 div#menu.menu-visible {
-	max-height: 500px;
+	max-height: 31.25rem;
 }
 div#menu > a,
 #menu-button {
-	margin: 10px 2px;
-	padding: 10px;
+	margin: 0.625rem 0.125rem;
+	padding: 0.625rem;
 }
 ::-webkit-input-placeholder {
 	color: #7f7f7f;
@@ -3416,7 +3561,7 @@ div#menu > a,
 }
 #menu .search-box {
 	display: inline-flex;
-	width: 140px;
+	width: 8.75rem;
 }
 input#search {
 	background: white;
@@ -3429,7 +3574,7 @@ input#search {
 	margin-right: 0;
 	flex-grow: 1;
 	max-width: 100%;
-	min-width: 90px;
+	min-width: 5.625rem;
 }
 input#search:-moz-ui-invalid {
 	box-shadow: unset;
@@ -3439,11 +3584,11 @@ input#search + button {
 	font-size: 1em;
 	background-color: #375EAB;
 	color: white;
-	border: 1px solid #375EAB;
+	border: 0.0625rem solid #375EAB;
 	border-top-left-radius: 0;
-	border-top-right-radius: 5px;
+	border-top-right-radius: 0.3125rem;
 	border-bottom-left-radius: 0;
-	border-bottom-right-radius: 5px;
+	border-bottom-right-radius: 0.3125rem;
 	margin-left: 0;
 	cursor: pointer;
 }
@@ -3457,9 +3602,9 @@ input#search + button svg {
 #menu-button {
 	display: none;
 	position: absolute;
-	right: 5px;
+	right: 0.3125rem;
 	top: 0;
-	margin-right: 5px;
+	margin-right: 0.3125rem;
 }
 #menu-button-arrow {
 	display: inline-block;
@@ -3485,71 +3630,65 @@ div.right {
 
 div#learn,
 div#about {
-	padding-top: 20px;
+	padding-top: 1.25rem;
 }
 div#learn h2,
 div#about {
 	margin: 0;
 }
 div#about {
-	font-size: 20px;
-	margin: 0 auto 30px;
+	font-size: 1.25rem;
+	margin: 0 auto 1.875rem;
 }
 div#gopher {
 	background: url(/doc/gopher/frontpage.png) no-repeat;
 	background-position: center top;
-	height: 155px;
+	height: 9.688rem;
+	max-height: 200px; /* Setting in px to prevent the gopher from blowing up in very high default font-sizes */
 }
 a#start {
 	display: block;
-	padding: 10px;
+	padding: 0.625rem;
 
 	text-align: center;
 	text-decoration: none;
-
-	-webkit-border-radius: 5px;
-	-moz-border-radius: 5px;
-	border-radius: 5px;
+	border-radius: 0.3125rem;
 }
 a#start .big {
 	display: block;
 	font-weight: bold;
-	font-size: 20px;
+	font-size: 1.25rem;
 }
 a#start .desc {
 	display: block;
-	font-size: 14px;
+	font-size: 0.875rem;
 	font-weight: normal;
-	margin-top: 5px;
+	margin-top: 0.3125rem;
 }
 
 div#learn .popout {
 	float: right;
 	display: block;
 	cursor: pointer;
-	font-size: 12px;
+	font-size: 0.75rem;
 	background: url(/doc/share.png) no-repeat;
-	background-position: right top;
-	padding: 5px 27px;
+	background-position: right center;
+	padding: 0.375rem 1.688rem;
 }
 div#learn pre,
 div#learn textarea {
 	padding: 0;
 	margin: 0;
 	font-family: Menlo, monospace;
-	font-size: 14px;
+	font-size: 0.875rem;
 }
 div#learn .input {
-	padding: 10px;
-	margin-top: 10px;
-	height: 150px;
+	padding: 0.625rem;
+	margin-top: 0.625rem;
+	height: 9.375rem;
 
-	-webkit-border-top-left-radius: 5px;
-	-webkit-border-top-right-radius: 5px;
-	-moz-border-radius-topleft: 5px;
-	-moz-border-radius-topright: 5px;
-	border-top-left-radius: 5px;
-	border-top-right-radius: 5px;
+	border-top-left-radius: 0.3125rem;
+	border-top-right-radius: 0.3125rem;
 }
 div#learn .input textarea {
 	width: 100%;
@@ -3561,22 +3700,15 @@ div#learn .input textarea {
 div#learn .output {
 	border-top: none !important;
 
-	padding: 10px;
-	height: 59px;
+	padding: 0.625rem;
+	height: 3.688rem;
 	overflow: auto;
 
-	-webkit-border-bottom-right-radius: 5px;
-	-webkit-border-bottom-left-radius: 5px;
-	-moz-border-radius-bottomright: 5px;
-	-moz-border-radius-bottomleft: 5px;
-	border-bottom-right-radius: 5px;
-	border-bottom-left-radius: 5px;
+	border-bottom-right-radius: 0.3125rem;
+	border-bottom-left-radius: 0.3125rem;
 }
 div#learn .output pre {
 	padding: 0;
-
-	-webkit-border-radius: 0;
-	-moz-border-radius: 0;
 	border-radius: 0;
 }
 div#learn .input,
@@ -3587,23 +3719,24 @@ div#learn .output pre {
 }
 div#learn .input,
 div#learn .output {
-	border: 1px solid #375EAB;
+	border: 0.0625rem solid #375EAB;
 }
 div#learn .buttons {
 	float: right;
-	padding: 20px 0 10px 0;
+	padding: 1.25rem 0 0.625rem 0;
 	text-align: right;
 }
 div#learn .buttons a {
-	height: 16px;
-	margin-left: 5px;
-	padding: 10px;
+	height: 1rem;
+	margin-left: 0.3125rem;
+	padding: 0.625rem;
 }
 div#learn .toys {
-	margin-top: 8px;
+	margin-top: 0.5rem;
 }
 div#learn .toys select {
-	border: 1px solid #375EAB;
+	font-size: 0.875rem;
+	border: 0.0625rem solid #375EAB;
 	margin: 0;
 }
 div#learn .output .exit {
@@ -3615,7 +3748,7 @@ div#video {
 }
 div#blog,
 div#video {
-	margin-top: 40px;
+	margin-top: 2.5rem;
 }
 div#blog > a,
 div#blog > div,
@@ -3623,19 +3756,35 @@ div#blog > h2,
 div#video > a,
 div#video > div,
 div#video > h2 {
-	margin-bottom: 10px;
+	margin-bottom: 0.625rem;
 }
 div#blog .title,
 div#video .title {
 	display: block;
-	font-size: 20px;
+	font-size: 1.25rem;
 }
 div#blog .when {
 	color: #666;
-	font-size: 14px;
+	font-size: 0.875rem;
 }
 div#blog .read {
 	text-align: right;
+}
+
+@supports (--c: 0) {
+	[style*="--aspect-ratio-padding:"] {
+		position: relative;
+		overflow: hidden;
+		padding-top: var(--aspect-ratio-padding);
+	}
+
+	[style*="--aspect-ratio-padding:"]>* {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+	}
 }
 
 .toggleButton { cursor: pointer; }
@@ -3645,20 +3794,20 @@ div#blog .read {
 .toggleVisible > .expanded { display: block; }
 
 table.codetable { margin-left: auto; margin-right: auto; border-style: none; }
-table.codetable td { padding-right: 10px; }
-hr { border-style: none; border-top: 1px solid black; }
+table.codetable td { padding-right: 0.625rem; }
+hr { border-style: none; border-top: 0.0625rem solid black; }
 
 img.gopher {
 	float: right;
-	margin-left: 10px;
-	margin-bottom: 10px;
+	margin-left: 0.625rem;
+	margin-bottom: 0.625rem;
 	z-index: -1;
 }
 h2 { clear: right; }
 
 /* example and drop-down playground */
 div.play {
-	padding: 0 20px 40px 20px;
+	padding: 0 1.25rem 2.5rem 1.25rem;
 }
 div.play pre,
 div.play textarea,
@@ -3666,18 +3815,14 @@ div.play .lines {
 	padding: 0;
 	margin: 0;
 	font-family: Menlo, monospace;
-	font-size: 14px;
+	font-size: 0.875rem;
 }
 div.play .input {
-	padding: 10px;
-	margin-top: 10px;
+	padding: 0.625rem;
+	margin-top: 0.625rem;
 
-	-webkit-border-top-left-radius: 5px;
-	-webkit-border-top-right-radius: 5px;
-	-moz-border-radius-topleft: 5px;
-	-moz-border-radius-topright: 5px;
-	border-top-left-radius: 5px;
-	border-top-right-radius: 5px;
+	border-top-left-radius: 0.3125rem;
+	border-top-right-radius: 0.3125rem;
 
 	overflow: hidden;
 }
@@ -3697,22 +3842,15 @@ div#playground .input textarea {
 div.play .output {
 	border-top: none !important;
 
-	padding: 10px;
-	max-height: 200px;
+	padding: 0.625rem;
+	max-height: 12.5rem;
 	overflow: auto;
 
-	-webkit-border-bottom-right-radius: 5px;
-	-webkit-border-bottom-left-radius: 5px;
-	-moz-border-radius-bottomright: 5px;
-	-moz-border-radius-bottomleft: 5px;
-	border-bottom-right-radius: 5px;
-	border-bottom-left-radius: 5px;
+	border-bottom-right-radius: 0.3125rem;
+	border-bottom-left-radius: 0.3125rem;
 }
 div.play .output pre {
 	padding: 0;
-
-	-webkit-border-radius: 0;
-	-moz-border-radius: 0;
 	border-radius: 0;
 }
 div.play .input,
@@ -3723,17 +3861,17 @@ div.play .output pre {
 }
 div.play .input,
 div.play .output {
-	border: 1px solid #375EAB;
+	border: 0.0625rem solid #375EAB;
 }
 div.play .buttons {
 	float: right;
-	padding: 20px 0 10px 0;
+	padding: 1.25rem 0 0.625rem 0;
 	text-align: right;
 }
 div.play .buttons a {
-	height: 16px;
-	margin-left: 5px;
-	padding: 10px;
+	height: 1rem;
+	margin-left: 0.3125rem;
+	padding: 0.625rem;
 	cursor: pointer;
 }
 .output .stderr {
@@ -3751,29 +3889,25 @@ div#playground {
 }
 div#playground {
 	position: absolute;
-	top: 63px;
-	right: 20px;
-	padding: 0 10px 10px 10px;
+	top: 3.938rem;
+	right: 1.25rem;
+	padding: 0 0.625rem 0.625rem 0.625rem;
 	z-index: 1;
 	text-align: left;
 	background: #E0EBF5;
 
-	border: 1px solid #B0BBC5;
+	border: 0.0625rem solid #B0BBC5;
 	border-top: none;
 
-	-webkit-border-bottom-left-radius: 5px;
-	-webkit-border-bottom-right-radius: 5px;
-	-moz-border-radius-bottomleft: 5px;
-	-moz-border-radius-bottomright: 5px;
-	border-bottom-left-radius: 5px;
-	border-bottom-right-radius: 5px;
+	border-bottom-left-radius: 0.3125rem;
+	border-bottom-right-radius: 0.3125rem;
 }
 div#playground .code {
-	width: 520px;
-	height: 200px;
+	width: 32.5rem;
+	height: 12.5rem;
 }
 div#playground .output {
-	height: 100px;
+	height: 6.25rem;
 }
 
 /* Inline runnable snippets (play.js/initPlayground) */
@@ -3782,7 +3916,7 @@ div#playground .output {
 	padding: 0;
 	background: none;
 	border: none;
-	outline: 0px solid transparent;
+	outline: 0 solid transparent;
 	overflow: auto;
 }
 #content .playground .number, #content .code .number {
@@ -3790,11 +3924,9 @@ div#playground .output {
 }
 #content .code, #content .playground, #content .output {
 	width: auto;
-	margin: 20px;
-	padding: 10px;
-	-webkit-border-radius: 5px;
-	-moz-border-radius: 5px;
-	border-radius: 5px;
+	margin: 1.25rem;
+	padding: 0.625rem;
+	border-radius: 0.3125rem;
 }
 #content .code, #content .playground {
 	background: #e9e9e9;
@@ -3814,11 +3946,11 @@ div#playground .output {
 #content .buttons {
 	position: relative;
 	float: right;
-	top: -50px;
-	right: 30px;
+	top: -3.125rem;
+	right: 1.875rem;
 }
 #content .output .buttons {
-	top: -60px;
+	top: -3.75rem;
 	right: 0;
 	height: 0;
 }
@@ -3830,29 +3962,11 @@ a.error {
 	font-weight: bold;
 	color: white;
 	background-color: darkred;
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
-	padding: 2px 4px 2px 4px; /* TRBL */
-}
-
-/* Hide English translations. */
-div.english {
-	display: none;
-}
-.en_visible {
-	display: block;
-}
-
-/* Translator notes. */
-p.tnote {
-	background: #00f9e9;
-	padding: 10px;
-
-	-webkit-border-radius: 5px;
-	-moz-border-radius: 5px;
-	border-radius: 5px;
+	border-bottom-left-radius: 0.25rem;
+	border-bottom-right-radius: 0.25rem;
+	border-top-left-radius: 0.25rem;
+	border-top-right-radius: 0.25rem;
+	padding: 0.125rem 0.25rem 0.125rem 0.25rem; /* TRBL */
 }
 
 
@@ -3862,12 +3976,12 @@ p.tnote {
 
 .downloading {
 	background: #F9F9BE;
-	padding: 10px;
+	padding: 0.625rem;
 	text-align: center;
-	border-radius: 5px;
+	border-radius: 0.3125rem;
 }
 
-@media (max-width: 930px) {
+@media (max-width: 58.125em) {
 	#heading-wide {
 		display: none;
 	}
@@ -3876,8 +3990,7 @@ p.tnote {
 	}
 }
 
-
-@media (max-width: 760px) {
+@media (max-width: 47.5em) {
 	.container .left,
 	.container .right {
 		width: auto;
@@ -3885,39 +3998,39 @@ p.tnote {
 	}
 
 	div#about {
-		max-width: 500px;
+		max-width: 31.25rem;
 		text-align: center;
 	}
 }
 
-@media (min-width: 700px) and (max-width: 1000px) {
+@media (min-width: 43.75em) and (max-width: 62.5em) {
 	div#menu > a {
-		margin: 5px 0;
-		font-size: 14px;
+		margin: 0.3125rem 0;
+		font-size: 0.875rem;
 	}
 
 	input#search {
-		font-size: 14px;
+		font-size: 0.875rem;
 	}
 }
 
-@media (max-width: 700px) {
+@media (max-width: 43.75em) {
 	body {
-		font-size: 15px;
+		font-size: 0.9375rem;
 	}
 
 	pre,
 	code {
-		font-size: 13px;
+		font-size: 0.866rem;
 	}
 
 	div#page > .container {
-		padding: 0 10px;
+		padding: 0 0.625rem;
 	}
 
 	div#topbar {
 		height: auto;
-		padding: 10px;
+		padding: 0.625rem;
 	}
 
 	div#topbar > .container {
@@ -3934,7 +4047,7 @@ p.tnote {
 	.top-heading {
 		float: none;
 		display: inline-block;
-		padding: 12px;
+		padding: 0.75rem;
 	}
 
 	div#menu {
@@ -3963,7 +4076,7 @@ p.tnote {
 	pre,
 	ul,
 	ol {
-		margin: 10px;
+		margin: 0.625rem;
 	}
 
 	.pkg-synopsis {
@@ -3975,7 +4088,7 @@ p.tnote {
 	}
 }
 
-@media (max-width: 480px) {
+@media (max-width: 30em) {
 	#heading-wide {
 		display: none;
 	}
@@ -3987,7 +4100,7 @@ p.tnote {
 @media print {
 	pre {
 		background: #FFF;
-		border: 1px solid #BBB;
+		border: 0.0625rem solid #BBB;
 		white-space: pre-wrap;
 	}
 }

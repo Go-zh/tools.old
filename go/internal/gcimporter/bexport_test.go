@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/Go-zh/tools/go/buildutil"
-	gcimporter "github.com/Go-zh/tools/go/gcimporter15"
+	"github.com/Go-zh/tools/go/internal/gcimporter"
 	"github.com/Go-zh/tools/go/loader"
 )
 
@@ -63,7 +63,10 @@ type UnknownType undefined
 		if info.Files == nil {
 			continue // empty directory
 		}
-		exportdata := gcimporter.BExportData(conf.Fset, pkg)
+		exportdata, err := gcimporter.BExportData(conf.Fset, pkg)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		imports := make(map[string]*types.Package)
 		fset2 := token.NewFileSet()
@@ -306,7 +309,10 @@ func TestVeryLongFile(t *testing.T) {
 	}
 
 	// export
-	exportdata := gcimporter.BExportData(fset1, pkg)
+	exportdata, err := gcimporter.BExportData(fset1, pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// import
 	imports := make(map[string]*types.Package)
