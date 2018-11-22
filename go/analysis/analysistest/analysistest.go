@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/internal/checker"
-	"golang.org/x/tools/go/packages"
+	"github.com/Go-zh/tools/go/analysis"
+	"github.com/Go-zh/tools/go/analysis/internal/checker"
+	"github.com/Go-zh/tools/go/packages"
 )
 
 // WriteFiles is a helper function that creates a temporary directory

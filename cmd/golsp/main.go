@@ -6,7 +6,7 @@
 // The Language Server Protocol allows any text editor
 // to be extended with IDE-like features;
 // see https://langserver.org/ for details.
-package main // import "golang.org/x/tools/cmd/golsp"
+package main // import "github.com/Go-zh/tools/cmd/golsp"
 
 import (
 	"context"
@@ -19,8 +19,8 @@ import (
 	"runtime/pprof"
 	"runtime/trace"
 
-	"golang.org/x/tools/internal/jsonrpc2"
-	"golang.org/x/tools/internal/lsp"
+	"github.com/Go-zh/tools/internal/jsonrpc2"
+	"github.com/Go-zh/tools/internal/lsp"
 )
 
 var (

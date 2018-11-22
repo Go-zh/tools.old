@@ -12,7 +12,7 @@
 //
 // 	import (
 // 		"example.org/findbadness"
-// 		"golang.org/x/tools/go/analysis/singlechecker"
+// 		"github.com/Go-zh/tools/go/analysis/singlechecker"
 // 	)
 //
 // 	func main() { singlechecker.Main(findbadness.Analyzer) }
@@ -26,8 +26,8 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/internal/checker"
+	"github.com/Go-zh/tools/go/analysis"
+	"github.com/Go-zh/tools/go/analysis/internal/checker"
 )
 
 // Main is the main function for a checker command for a single analysis.

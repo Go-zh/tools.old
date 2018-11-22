@@ -61,7 +61,7 @@ according to the conventions of the underlying build system.
 See the Example function for typical usage.
 
 */
-package packages // import "golang.org/x/tools/go/packages"
+package packages // import "github.com/Go-zh/tools/go/packages"
 
 /*
 

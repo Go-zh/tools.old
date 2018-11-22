@@ -21,8 +21,8 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/tools/go/packages"
-	"golang.org/x/tools/go/types/typeutil"
+	"github.com/Go-zh/tools/go/packages"
+	"github.com/Go-zh/tools/go/types/typeutil"
 )
 
 // flags

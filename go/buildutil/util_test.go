@@ -77,7 +77,7 @@ func TestContainingPackage(t *testing.T) {
 // gopathContainingTools returns the path of the GOPATH workspace
 // with golang.org/x/tools, or fails the test if it can't locate it.
 func gopathContainingTools(t *testing.T) string {
-	p, err := build.Import("golang.org/x/tools", "", build.FindOnly)
+	p, err := build.Import("github.com/Go-zh/tools", "", build.FindOnly)
 	if err != nil {
 		t.Fatal(err)
 	}

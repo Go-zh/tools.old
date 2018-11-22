@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/tools/go/analysis/analysistest"
-	"golang.org/x/tools/go/analysis/passes/findcall"
+	"github.com/Go-zh/tools/go/analysis/analysistest"
+	"github.com/Go-zh/tools/go/analysis/passes/findcall"
 )
 
 // TestTheTest tests the analysistest testing infrastructure.

@@ -7,7 +7,7 @@ package protocol
 import (
 	"context"
 
-	"golang.org/x/tools/internal/jsonrpc2"
+	"github.com/Go-zh/tools/internal/jsonrpc2"
 )
 
 func canceller(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {

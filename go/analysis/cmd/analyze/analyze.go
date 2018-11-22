@@ -12,10 +12,10 @@ package main
 import (
 	"log"
 
-	"golang.org/x/tools/go/analysis/multichecker"
+	"github.com/Go-zh/tools/go/analysis/multichecker"
 
 	// analysis plug-ins
-	"golang.org/x/tools/go/analysis/passes/findcall"
+	"github.com/Go-zh/tools/go/analysis/passes/findcall"
 )
 
 func main() {

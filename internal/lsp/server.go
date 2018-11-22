@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/tools/internal/jsonrpc2"
-	"golang.org/x/tools/internal/lsp/protocol"
+	"github.com/Go-zh/tools/internal/jsonrpc2"
+	"github.com/Go-zh/tools/internal/lsp/protocol"
 )
 
 // RunServer starts an LSP server on the supplied stream, and waits until the

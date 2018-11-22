@@ -19,8 +19,8 @@ import (
 	"net/http"
 
 	"cloud.google.com/go/storage"
-	"golang.org/x/build/autocertcache"
-	"golang.org/x/crypto/acme/autocert"
+	"github.com/Go-zh/build/autocertcache"
+	"github.com/Go-zh/crypto/acme/autocert"
 )
 
 func init() {

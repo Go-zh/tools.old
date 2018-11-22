@@ -6,7 +6,7 @@ package findcall
 import (
 	"go/ast"
 
-	"golang.org/x/tools/go/analysis"
+	"github.com/Go-zh/tools/go/analysis"
 )
 
 var Analyzer = &analysis.Analyzer{
