@@ -121,6 +121,10 @@
 			<h3>Examples</h3>
 -->
 			<h3>示例</h3>
+<!--
+			<div class="js-expandAll expandAll collapsed">(Expand All)</div>
+-->
+			<div class="js-expandAll expandAll collapsed">（展开所有）</div>
 			<dl>
 			{{range $.Examples}}
 			<dd><a class="exampleLink" href="#example_{{.Name}}">{{example_name .Name}}</a></dd>
@@ -229,6 +233,8 @@
 			{{$name_html := html .Name}}
 			<h2 id="{{$name_html}}">func <a href="{{posLink_url $ .Decl}}">{{$name_html}}</a>
 				<a class="permalink" href="#{{$name_html}}">&#xb6;</a>
+				{{$since := since "func" "" .Name $.PDoc.ImportPath}}
+				{{if $since}}<span title="Added in Go {{$since}}">{{$since}}</span>{{end}}
 			</h2>
 			<pre>{{node_html $ .Decl true}}</pre>
 			{{comment_html .Doc}}
@@ -241,6 +247,8 @@
 			{{$tname_html := html .Name}}
 			<h2 id="{{$tname_html}}">type <a href="{{posLink_url $ .Decl}}">{{$tname_html}}</a>
 				<a class="permalink" href="#{{$tname_html}}">&#xb6;</a>
+				{{$since := since "type" "" .Name $.PDoc.ImportPath}}
+				{{if $since}}<span title="Added in Go {{$since}}">{{$since}}</span>{{end}}
 			</h2>
 			{{comment_html .Doc}}
 			<pre>{{node_html $ .Decl true}}</pre>
@@ -263,6 +271,8 @@
 				{{$name_html := html .Name}}
 				<h3 id="{{$name_html}}">func <a href="{{posLink_url $ .Decl}}">{{$name_html}}</a>
 					<a class="permalink" href="#{{$name_html}}">&#xb6;</a>
+					{{$since := since "func" "" .Name $.PDoc.ImportPath}}
+					{{if $since}}<span title="Added in Go {{$since}}">{{$since}}</span>{{end}}
 				</h3>
 				<pre>{{node_html $ .Decl true}}</pre>
 				{{comment_html .Doc}}
@@ -274,6 +284,8 @@
 				{{$name_html := html .Name}}
 				<h3 id="{{$tname_html}}.{{$name_html}}">func ({{html .Recv}}) <a href="{{posLink_url $ .Decl}}">{{$name_html}}</a>
 					<a class="permalink" href="#{{$tname_html}}.{{$name_html}}">&#xb6;</a>
+					{{$since := since "method" .Recv .Name $.PDoc.ImportPath}}
+					{{if $since}}<span title="Added in Go {{$since}}">{{$since}}</span>{{end}}
 				</h3>
 				<pre>{{node_html $ .Decl true}}</pre>
 				{{comment_html .Doc}}

@@ -923,13 +923,13 @@ function personalizeInstallInstructions() {
 
   var filename = s.substr(prefix.length);
   var filenameRE = /^go1\.\d+(\.\d+)?([a-z0-9]+)?\.([a-z0-9]+)(-[a-z0-9]+)?(-osx10\.[68])?\.([a-z.]+)$/;
-  $('.downloadFilename').text(filename);
-  $('.hideFromDownload').hide();
   var m = filenameRE.exec(filename);
   if (!m) {
     // Can't interpret file name; bail.
     return;
   }
+  $('.downloadFilename').text(filename);
+  $('.hideFromDownload').hide();
 
   var os = m[3];
   var ext = m[6];
@@ -996,6 +996,28 @@ function addPermalinks() {
     var el = $(this);
     // Add the anchor to the "dt" element.
     addPermalink(el, el.find("> dt").first());
+  });
+}
+
+$(".js-expandAll").click(function() {
+  if ($(this).hasClass("collapsed")) {
+    toggleExamples('toggle');
+    $(this).text("(Collapse All)");
+  } else {
+    toggleExamples('toggleVisible');
+    $(this).text("(Expand All)");
+  }
+  $(this).toggleClass("collapsed")
+});
+
+function toggleExamples(className) {
+  // We need to explicitly iterate through divs starting with "example_"
+  // to avoid toggling Overview and Index collapsibles.
+  $("[id^='example_']").each(function() {
+    // Check for state and click it only if required.
+    if ($(this).hasClass(className)) {
+      $(this).find('.toggleButton').first().click();
+    }
   });
 }
 
@@ -1870,6 +1892,10 @@ function cgAddChild(tree, ul, cgn) {
 			<h3>Examples</h3>
 -->
 			<h3>示例</h3>
+<!--
+			<div class="js-expandAll expandAll collapsed">(Expand All)</div>
+-->
+			<div class="js-expandAll expandAll collapsed">（展开所有）</div>
 			<dl>
 			{{range $.Examples}}
 			<dd><a class="exampleLink" href="#example_{{.Name}}">{{example_name .Name}}</a></dd>
@@ -1978,6 +2004,8 @@ function cgAddChild(tree, ul, cgn) {
 			{{$name_html := html .Name}}
 			<h2 id="{{$name_html}}">func <a href="{{posLink_url $ .Decl}}">{{$name_html}}</a>
 				<a class="permalink" href="#{{$name_html}}">&#xb6;</a>
+				{{$since := since "func" "" .Name $.PDoc.ImportPath}}
+				{{if $since}}<span title="Added in Go {{$since}}">{{$since}}</span>{{end}}
 			</h2>
 			<pre>{{node_html $ .Decl true}}</pre>
 			{{comment_html .Doc}}
@@ -1990,6 +2018,8 @@ function cgAddChild(tree, ul, cgn) {
 			{{$tname_html := html .Name}}
 			<h2 id="{{$tname_html}}">type <a href="{{posLink_url $ .Decl}}">{{$tname_html}}</a>
 				<a class="permalink" href="#{{$tname_html}}">&#xb6;</a>
+				{{$since := since "type" "" .Name $.PDoc.ImportPath}}
+				{{if $since}}<span title="Added in Go {{$since}}">{{$since}}</span>{{end}}
 			</h2>
 			{{comment_html .Doc}}
 			<pre>{{node_html $ .Decl true}}</pre>
@@ -2012,6 +2042,8 @@ function cgAddChild(tree, ul, cgn) {
 				{{$name_html := html .Name}}
 				<h3 id="{{$name_html}}">func <a href="{{posLink_url $ .Decl}}">{{$name_html}}</a>
 					<a class="permalink" href="#{{$name_html}}">&#xb6;</a>
+					{{$since := since "func" "" .Name $.PDoc.ImportPath}}
+					{{if $since}}<span title="Added in Go {{$since}}">{{$since}}</span>{{end}}
 				</h3>
 				<pre>{{node_html $ .Decl true}}</pre>
 				{{comment_html .Doc}}
@@ -2023,6 +2055,8 @@ function cgAddChild(tree, ul, cgn) {
 				{{$name_html := html .Name}}
 				<h3 id="{{$tname_html}}.{{$name_html}}">func ({{html .Recv}}) <a href="{{posLink_url $ .Decl}}">{{$name_html}}</a>
 					<a class="permalink" href="#{{$tname_html}}.{{$name_html}}">&#xb6;</a>
+					{{$since := since "method" .Recv .Name $.PDoc.ImportPath}}
+					{{if $since}}<span title="Added in Go {{$since}}">{{$since}}</span>{{end}}
 				</h3>
 				<pre>{{node_html $ .Decl true}}</pre>
 				{{comment_html .Doc}}
@@ -2670,7 +2704,10 @@ function HTTPTransport(enableVet) {
 						dataType: "json",
 						success: function(dataVet) {
 							if (dataVet.Errors) {
-								// inject errors from the vet as the first event in the output
+								if (!data.Events) {
+									data.Events = [];
+								}
+								// inject errors from the vet as the first events in the output
 								data.Events.unshift({Message: 'Go vet exited.\n\n', Kind: 'system', Delay: 0});
 								data.Events.unshift({Message: dataVet.Errors, Kind: 'stderr', Delay: 0});
 							}
@@ -3332,15 +3369,25 @@ pre .ln {
 	-moz-user-select: none;
 	-ms-user-select: none;
 	user-select: none;
+
+	/* Ensure 8 characters in the document - which due to floating
+   * point rendering issues, might have a width of less than 1 each - are 8
+   * characters wide, so a tab in the 9th position indents properly. See
+   * https://github.com/webcompat/web-bugs/issues/17530#issuecomment-402675091
+   * for more information. */
+	display: inline-block;
+	width: 8ch;
 }
 
 a,
-.exampleHeading .text {
+.exampleHeading .text,
+.expandAll {
 	color: #375EAB;
 	text-decoration: none;
 }
 a:hover,
-.exampleHeading .text:hover {
+.exampleHeading .text:hover,
+.expandAll:hover {
 	text-decoration: underline;
 }
 .article a {
@@ -3396,12 +3443,17 @@ h2 {
 	padding: 0.5rem;
 	line-height: 1.25;
 	font-weight: normal;
+	overflow: auto;
+	overflow-wrap: break-word;
 }
 h2 a {
 	font-weight: bold;
 }
 h3 {
 	font-size: 1.25rem;
+	line-height: 1.25;
+	overflow: auto;
+	overflow-wrap: break-word;
 }
 h3,
 h4 {
@@ -3413,6 +3465,14 @@ h4 {
 .rootHeading {
 	font-size: 1.25rem;
 	margin: 0;
+}
+
+h2 > span,
+h3 > span {
+	float: right;
+	margin: 0 25px 0 0;
+	font-weight: normal;
+	color: #5279C7;
 }
 
 dl {
@@ -3455,6 +3515,20 @@ div#nav table td {
 .top-heading a {
 	color: #222;
 	text-decoration: none;
+}
+
+#pkg-examples h3 {
+	float: left;
+}
+
+#pkg-examples dl {
+	clear: both;
+}
+
+.expandAll {
+	cursor: pointer;
+	float: left;
+	margin: 1.25rem 0;
 }
 
 div#topbar {

@@ -11,9 +11,10 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"log"
 	"os"
 
-	"github.com/Go-zh/tools/go/loader"
+	"github.com/Go-zh/tools/go/packages"
 	"github.com/Go-zh/tools/go/ssa"
 	"github.com/Go-zh/tools/go/ssa/ssautil"
 )
@@ -33,7 +34,7 @@ func main() {
 // This program demonstrates how to run the SSA builder on a single
 // package of one or more already-parsed files.  Its dependencies are
 // loaded from compiler export data.  This is what you'd typically use
-// for a compiler; it does not depend on golang.org/x/tools/go/loader.
+// for a compiler; it does not depend on github.com/Go-zh/tools/go/loader.
 //
 // It shows the printed representation of packages, functions, and
 // instructions.  Within the function listing, the name of each
@@ -46,7 +47,7 @@ func main() {
 //
 // Build and run the ssadump.go program if you want a standalone tool
 // with similar functionality. It is located at
-// golang.org/x/tools/cmd/ssadump.
+// github.com/Go-zh/tools/cmd/ssadump.
 //
 func ExampleBuildPackage() {
 	// Parse the source files.
@@ -113,26 +114,51 @@ func ExampleBuildPackage() {
 	// 	return
 }
 
-// This program shows how to load a main package (cmd/cover) and all its
-// dependencies from source, using the loader, and then build SSA code
-// for the entire program.  This is what you'd typically use for a
-// whole-program analysis.
-//
-func ExampleLoadProgram() {
-	// Load cmd/cover and its dependencies.
-	var conf loader.Config
-	conf.Import("cmd/cover")
-	lprog, err := conf.Load()
+// This example builds SSA code for a set of packages using the
+// x/tools/go/packages API. This is what you would typically use for a
+// analysis capable of operating on a single package.
+func ExampleLoadPackages() {
+	// Load, parse, and type-check the initial packages.
+	cfg := &packages.Config{Mode: packages.LoadSyntax}
+	initial, err := packages.Load(cfg, "fmt", "net/http")
 	if err != nil {
-		fmt.Print(err) // type error in some package
-		return
+		log.Fatal(err)
 	}
 
-	// Create SSA-form program representation.
-	prog := ssautil.CreateProgram(lprog, ssa.SanityCheckFunctions)
+	// Stop if any package had errors.
+	// This step is optional; without it, the next step
+	// will create SSA for only a subset of packages.
+	if packages.PrintErrors(initial) > 0 {
+		log.Fatalf("packages contain errors")
+	}
 
-	// Build SSA code for the entire cmd/cover program.
+	// Create SSA packages for all well-typed packages.
+	prog, pkgs := ssautil.Packages(initial, ssa.PrintPackages)
+	_ = prog
+
+	// Build SSA code for the well-typed initial packages.
+	for _, p := range pkgs {
+		if p != nil {
+			p.Build()
+		}
+	}
+}
+
+// This example builds SSA code for a set of packages plus all their dependencies,
+// using the x/tools/go/packages API.
+// This is what you'd typically use for a whole-program analysis.
+func ExampleLoadWholeProgram() {
+	// Load, parse, and type-check the whole program.
+	cfg := packages.Config{Mode: packages.LoadAllSyntax}
+	initial, err := packages.Load(&cfg, "fmt", "net/http")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create SSA packages for all well-typed packages.
+	prog, pkgs := ssautil.Packages(initial, ssa.PrintPackages)
+	_ = pkgs
+
+	// Build SSA code for the whole program.
 	prog.Build()
-
-	// Output:
 }

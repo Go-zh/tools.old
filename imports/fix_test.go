@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"flag"
+	"fmt"
 	"go/build"
 	"io/ioutil"
 	"os"
@@ -890,6 +891,169 @@ func main() {
 }
 `,
 	},
+
+	{
+		name: "issue #23709",
+		in: `package main
+
+import (
+	"math" // fun
+)
+
+func main() {
+	x := math.MaxInt64
+	fmt.Println(strings.Join(",", []string{"hi"}), x)
+}`,
+		out: `package main
+
+import (
+	"fmt"
+	"math" // fun
+	"strings"
+)
+
+func main() {
+	x := math.MaxInt64
+	fmt.Println(strings.Join(",", []string{"hi"}), x)
+}
+`,
+	},
+
+	{
+		name: "issue #26246 1",
+		in: `package main
+
+import (
+	_ "io"
+	_ "net/http"
+	_ "net/http/pprof" // install the pprof http handlers
+	_ "strings"
+)
+
+func main() {
+}
+`,
+		out: `package main
+
+import (
+	_ "io"
+	_ "net/http"
+	_ "net/http/pprof" // install the pprof http handlers
+	_ "strings"
+)
+
+func main() {
+}
+`,
+	},
+
+	{
+		name: "issue #26246 2",
+		in: `package main
+
+import (
+	_ "io"
+	_ "net/http/pprof" // install the pprof http handlers
+	_ "net/http"
+	_ "strings"
+)
+
+func main() {
+}
+`,
+		out: `package main
+
+import (
+	_ "io"
+	_ "net/http"
+	_ "net/http/pprof" // install the pprof http handlers
+	_ "strings"
+)
+
+func main() {
+}
+`,
+	},
+
+	{
+		name: "issue #26246 3",
+		in: `package main
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	_ "net/http/pprof" // install the pprof http handlers
+	"strings"
+
+	"github.com/pkg/errors"
+)
+
+func main() {
+	_ = strings.ToUpper("hello")
+	_ = io.EOF
+	var (
+		_ json.Number
+		_ *http.Request
+		_ errors.Frame
+	)
+}
+`,
+		out: `package main
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	_ "net/http/pprof" // install the pprof http handlers
+	"strings"
+
+	"github.com/pkg/errors"
+)
+
+func main() {
+	_ = strings.ToUpper("hello")
+	_ = io.EOF
+	var (
+		_ json.Number
+		_ *http.Request
+		_ errors.Frame
+	)
+}
+`,
+	},
+
+	{
+		name: "issue #26290 1",
+		in: `package p // comment
+
+import "math"
+
+var _ = fmt.Printf
+`,
+		out: `package p // comment
+
+import "fmt"
+
+var _ = fmt.Printf
+`,
+	},
+
+	{
+		name: "issue #26290 2",
+		in: `package p
+
+import "math"
+
+var _ = fmt.Printf
+`,
+		out: `package p
+
+import "fmt"
+
+var _ = fmt.Printf
+`,
+	},
 }
 
 func TestFixImports(t *testing.T) {
@@ -903,15 +1067,21 @@ func TestFixImports(t *testing.T) {
 		"regexp":    "regexp",
 		"snappy":    "code.google.com/p/snappy-go/snappy",
 		"str":       "strings",
+		"strings":   "strings",
 		"user":      "appengine/user",
 		"zip":       "archive/zip",
 	}
-	old := findImport
+	oldFindImport := findImport
+	oldDirPackageInfo := dirPackageInfo
 	defer func() {
-		findImport = old
+		findImport = oldFindImport
+		dirPackageInfo = oldDirPackageInfo
 	}()
 	findImport = func(_ context.Context, pkgName string, symbols map[string]bool, filename string) (string, bool, error) {
 		return simplePkgs[pkgName], pkgName == "str", nil
+	}
+	dirPackageInfo = func(_, _, _ string) (*packageInfo, error) {
+		return nil, fmt.Errorf("no directory package info in tests")
 	}
 
 	options := &Options{
@@ -1113,6 +1283,32 @@ var (
 
 }
 
+// Test for x/y/v2 convention for package y.
+func TestFixModuleVersion(t *testing.T) {
+	testConfig{}.test(t, func(t *goimportTest) {
+		input := `package p
+
+import (
+	"fmt"
+
+	"foo/v2"
+)
+
+var (
+	_ = fmt.Print
+	_ = foo.Foo
+)
+`
+		buf, err := Process(filepath.Join(t.gopath, "src/mypkg.com/outpkg/toformat.go"), []byte(input), &Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(buf); got != input {
+			t.Fatalf("results differ\nGOT:\n%s\nWANT:\n%s\n", got, input)
+		}
+	})
+}
+
 // Test for correctly identifying the name of a vendored package when it
 // differs from its directory name. In this test, the import line
 // "mypkg.com/mypkg.v1" would be removed if goimports wasn't able to detect
@@ -1214,13 +1410,16 @@ func withEmptyGoPath(fn func()) {
 
 	oldGOPATH := build.Default.GOPATH
 	oldGOROOT := build.Default.GOROOT
+	oldCompiler := build.Default.Compiler
 	build.Default.GOPATH = ""
+	build.Default.Compiler = "gc"
 	testHookScanDir = func(string) {}
 
 	defer func() {
 		testHookScanDir = func(string) {}
 		build.Default.GOPATH = oldGOPATH
 		build.Default.GOROOT = oldGOROOT
+		build.Default.Compiler = oldCompiler
 	}()
 
 	fn()
