@@ -19,11 +19,28 @@
 {{if .SearchBox}}
 <link rel="search" type="application/opensearchdescription+xml" title="godoc" href="/opensearch.xml" />
 {{end}}
+{{if .TreeView}}
 <link rel="stylesheet" href="/lib/godoc/jquery.treeview.css">
+{{end}}
 <script>window.initFuncs = [];</script>
+{{with .GoogleAnalytics}}
+<script type="text/javascript">
+var _gaq = _gaq || [];
+_gaq.push(["_setAccount", "{{.}}"]);
+window.trackPageview = function() {
+  _gaq.push(["_trackPageview", location.pathname+location.hash]);
+};
+window.trackPageview();
+window.trackEvent = function(category, action, opt_label, opt_value, opt_noninteraction) {
+  _gaq.push(["_trackEvent", category, action, opt_label, opt_value, opt_noninteraction]);
+};
+</script>
+{{end}}
 <script src="/lib/godoc/jquery.js" defer></script>
+{{if .TreeView}}
 <script src="/lib/godoc/jquery.treeview.js" defer></script>
 <script src="/lib/godoc/jquery.treeview.edit.js" defer></script>
+{{end}}
 
 {{if .Playground}}
 <script src="/lib/godoc/playground.js" defer></script>
@@ -50,20 +67,18 @@
 <a href="/help/">Help</a>
 {{if not .GoogleCN}}
 <a href="/blog/">Blog</a>
+{{end}}
 -->
 <a href="/doc/">文档</a>
 <a href="/pkg/">包</a>
 <a href="/project/">项目</a>
 <a href="/help/">帮助</a>
 <a href="/blog/">博客</a>
-<!--
-{{end}}
--->
-{{if .Playground}}
+{{if (and .Playground .Title)}}
 <!--
 <a id="playgroundButton" href="http://play.golang.org/" title="Show Go Playground">Play</a>
 -->
-<a id="playgroundButton" href="http://play.golang.org/" title="显示 Go 操场">运行</a>
+<a id="playgroundButton" href="http://play.golang.org/" title="显示 Go 练习场">运行</a>
 {{end}}
 
 <!--
@@ -148,6 +163,15 @@ and code is licensed under a <a href="/LICENSE">BSD license</a>.<br>
 
 </div><!-- .container -->
 </div><!-- #page -->
+{{if .GoogleAnalytics}}
+<script type="text/javascript">
+(function() {
+  var ga = document.createElement("script"); ga.type = "text/javascript"; ga.async = true;
+  ga.src = ("https:" == document.location.protocol ? "https://ssl" : "http://www") + ".google-analytics.com/ga.js";
+  var s = document.getElementsByTagName("script")[0]; s.parentNode.insertBefore(ga, s);
+})();
+</script>
+{{end}}
 </body>
 </html>
 
