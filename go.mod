@@ -1,3 +1,3 @@
-module golang.org/x/tools
+module github.com/Go-zh/tools
 
-require golang.org/x/net v0.0.0-20190311183353-d8887717615a
+require github.com/Go-zh/net v0.0.0-20190315180229-57d84770bff1

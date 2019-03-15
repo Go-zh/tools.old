@@ -16,11 +16,11 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/tools/go/packages/packagestest"
-	"golang.org/x/tools/internal/lsp/cache"
-	"golang.org/x/tools/internal/lsp/protocol"
-	"golang.org/x/tools/internal/lsp/source"
-	"golang.org/x/tools/internal/span"
+	"github.com/Go-zh/tools/go/packages/packagestest"
+	"github.com/Go-zh/tools/internal/lsp/cache"
+	"github.com/Go-zh/tools/internal/lsp/protocol"
+	"github.com/Go-zh/tools/internal/lsp/source"
+	"github.com/Go-zh/tools/internal/span"
 )
 
 // TODO(rstambler): Remove this once Go 1.12 is released as we end support for

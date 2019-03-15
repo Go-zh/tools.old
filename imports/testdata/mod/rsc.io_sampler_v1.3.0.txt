@@ -35,7 +35,7 @@ package sampler
 import (
 	"testing"
 
-	"golang.org/x/text/language"
+	"github.com/Go-zh/text/language"
 	_ "rsc.io/testonly"
 )
 
@@ -91,7 +91,7 @@ package sampler
 import (
 	"testing"
 
-	"golang.org/x/text/language"
+	"github.com/Go-zh/text/language"
 )
 
 var helloTests = []struct {
@@ -128,7 +128,7 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/text/language"
+	"github.com/Go-zh/text/language"
 )
 
 // DefaultUserPrefs returns the default user language preferences.
